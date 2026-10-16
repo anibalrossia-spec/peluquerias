@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peluquerías: cómo publicarla</title>
+<style>
+:root{--bg:#fff;--ink:#2A2730;--muted:#6B6575;--line:#E5E0EC;--soft:#F5F2F9;--accent:#CDB8E8;--hl:#FFE2CF;--warn:#FFF1CC}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Segoe UI",system-ui,sans-serif;padding:24px 16px 80px}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-size:32px;line-height:1.15;margin:0 0 8px}
+h2{font-size:22px;margin:40px 0 4px;padding-top:24px;border-top:1px solid var(--line)}
+.lead{color:var(--muted);margin:0 0 20px}
+.tag{display:inline-block;background:var(--accent);border-radius:999px;padding:2px 12px;font-size:13px;font-weight:700}
+li{margin:8px 0}
+code{font-family:Consolas,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:14px}
+.note{background:var(--warn);border-radius:10px;padding:12px 16px;margin:14px 0}
+.ok{background:var(--hl);border-radius:10px;padding:12px 16px;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:15px}
+td{border-top:1px solid var(--line);padding:8px 6px;vertical-align:top}
+td:first-child{font-family:Consolas,Menlo,monospace;white-space:nowrap}
+</style></head><body><div class="wrap">
+<span class="tag">Guía paso a paso</span>
+<h1>Publicar Peluquerías como aplicación</h1>
+<p class="lead">Dirección final: <b>https://anibalrossia-spec.github.io/peluquerias/</b>. Se instala en el celular y en la computadora. Usa la misma base de datos de Firebase que Socios Café (proyecto <code>socio-cafe</code>), en colecciones separadas, así que no hay que crear nada nuevo en Firebase.</p>
+
+<h2>Qué hay en esta carpeta</h2>
+<table>
+<tr><td>index.html</td><td>La aplicación.</td></tr>
+<tr><td>config.js</td><td>Conexión a Firebase (ya completo).</td></tr>
+<tr><td>firestore.rules</td><td>Reglas de seguridad para Socios Café <b>y</b> Peluquerías juntas.</td></tr>
+<tr><td>manifest.webmanifest, sw.js</td><td>Para instalarla y que abra rápido.</td></tr>
+<tr><td>icons/</td><td>Íconos de la tijera.</td></tr>
+</table>
+
+<h2>Paso 1: publicar las reglas en Firebase</h2>
+<ol>
+<li>Entrá a <b>console.firebase.google.com</b> → proyecto <b>socio-cafe</b> → <b>Firestore</b> → pestaña <b>Reglas</b>.</li>
+<li>Si arriba aparece "Ahora mismo · cambios sin publicar", las reglas ya están cargadas: tocá <b>Publicar</b>.</li>
+<li>Si no: borrá todo, abrí <code>firestore.rules</code> con el Bloc de notas, copiá todo, pegalo y tocá <b>Publicar</b>.</li>
+</ol>
+<div class="note">Estas reglas incluyen las de Socios Café sin cambios. No borres esa parte.</div>
+
+<h2>Paso 2: subir la aplicación a GitHub</h2>
+<ol>
+<li>Entrá a <b>github.com/new</b>. Nombre: <code>peluquerias</code>. <b>Public</b>. <b>Create repository</b>.</li>
+<li>Tocá <b>uploading an existing file</b>, arrastrá todos los archivos de esta carpeta y la carpeta <code>icons</code>, y tocá <b>Commit changes</b>.</li>
+<li><b>Settings → Pages</b> → Source: <b>Deploy from a branch</b>, rama <b>main</b>, carpeta <b>/ (root)</b> → <b>Save</b>.</li>
+<li>En uno o dos minutos queda en <b>https://anibalrossia-spec.github.io/peluquerias/</b>.</li>
+</ol>
+<div class="ok">El dominio <code>anibalrossia-spec.github.io</code> ya está autorizado en Firebase por Socios Café, así que no hace falta el paso de "Dominios autorizados". Si al crear la cuenta aparece un error de dominio, agregalo en Authentication → Configuración → Dominios autorizados.</div>
+
+<h2>Paso 3: primer uso</h2>
+<ol>
+<li>Abrí la dirección → <b>Soy peluquería</b> → <b>Crear la cuenta de mi peluquería</b>.</li>
+<li>Revisá <b>Servicios</b> (vienen precios de ejemplo) y cargá tu equipo.</li>
+<li>En <b>Agenda → Link para clientes</b> copiá tu link y compartilo por WhatsApp o Instagram.</li>
+<li>Los clientes reservan solos desde ese link, sin crear cuenta. Los turnos aparecen al instante en tu agenda.</li>
+</ol>
+
+<h2>Para actualizar más adelante</h2>
+<p>En GitHub, repositorio <code>peluquerias</code> → <b>Add file → Upload files</b> → arrastrá el archivo nuevo → <b>Commit changes</b>.</p>
+</div></body></html>

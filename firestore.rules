@@ -1,0 +1,111 @@
+rules_version = '2';
+// Reglas del proyecto de Firebase compartido por las apps de VentiunGo:
+// Socios Café (cafes, usuarios, tarjetas) y Peluquerías (peluquerias, pelu_usuarios).
+// Pegá este archivo completo en Firestore → Reglas y tocá Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+
+    // ======================= SOCIOS CAFÉ =======================
+    function member(cafeId) {
+      return signed() && exists(/databases/$(database)/documents/cafes/$(cafeId)/miembros/$(request.auth.uid));
+    }
+
+    match /cafes/{cafeId} {
+      allow read: if true;
+      allow create: if signed() && request.resource.data.creador == request.auth.uid;
+      allow update: if member(cafeId) && request.resource.data.creador == resource.data.creador;
+      allow delete: if false;
+
+      match /miembros/{uid} {
+        allow read: if member(cafeId);
+        allow create: if member(cafeId)
+          || (signed() && uid == request.auth.uid
+              && get(/databases/$(database)/documents/cafes/$(cafeId)).data.creador == request.auth.uid);
+        allow delete: if member(cafeId) && uid != request.auth.uid;
+        allow update: if false;
+      }
+
+      match /socios/{socioId} {
+        allow read, write: if member(cafeId);
+      }
+    }
+
+    match /usuarios/{uid} {
+      allow read, create: if signed() && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+
+    match /tarjetas/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if member(request.resource.data.cafeId);
+      allow update: if member(resource.data.cafeId) && request.resource.data.cafeId == resource.data.cafeId;
+      allow delete: if member(resource.data.cafeId);
+    }
+
+    // ======================= PELUQUERÍAS =======================
+    function pMember(pid) {
+      return signed() && exists(/databases/$(database)/documents/peluquerias/$(pid)/miembros/$(request.auth.uid));
+    }
+    function turnoPath(pid, tid) {
+      return /databases/$(database)/documents/peluquerias/$(pid)/turnos/$(tid);
+    }
+    function str(v, max) { return v is string && v.size() <= max; }
+
+    // Datos públicos de cada peluquería (nombre, horarios, servicios, equipo).
+    match /peluquerias/{pid} {
+      allow read: if true;
+      allow create: if signed() && request.resource.data.creador == request.auth.uid;
+      allow update: if pMember(pid) && request.resource.data.creador == resource.data.creador;
+      allow delete: if false;
+
+      match /miembros/{uid} {
+        allow read: if pMember(pid);
+        allow create: if pMember(pid)
+          || (signed() && uid == request.auth.uid
+              && get(/databases/$(database)/documents/peluquerias/$(pid)).data.creador == request.auth.uid);
+        allow delete: if pMember(pid) && uid != request.auth.uid;
+        allow update: if false;
+      }
+
+      // Turnos con los datos del cliente. Solo la peluquería los lista.
+      // El cliente puede reservar, y abrir o cancelar su turno con el código exacto.
+      match /turnos/{tid} {
+        allow get: if true;
+        allow list: if pMember(pid);
+        allow create: if pMember(pid) || (
+          request.resource.data.estado == 'pendiente'
+          && request.resource.data.keys().hasOnly(['fecha','hora','dur','servicioId','servicio','precio','profId','peluqueria','cliente','estado','nota','origen','creado'])
+          && str(request.resource.data.fecha, 10) && str(request.resource.data.hora, 5)
+          && request.resource.data.dur is int && request.resource.data.dur <= 600
+          && str(request.resource.data.cliente.nombre, 60) && str(request.resource.data.cliente.tel, 20)
+          && str(request.resource.data.nota, 200)
+          && exists(/databases/$(database)/documents/peluquerias/$(pid)));
+        allow update: if pMember(pid) || (
+          resource.data.estado == 'pendiente' && request.resource.data.estado == 'cancelado'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado']));
+        allow delete: if pMember(pid);
+      }
+
+      // Horarios ocupados (sin datos del cliente), para mostrar disponibilidad.
+      match /ocupados/{tid} {
+        allow read: if true;
+        allow create: if pMember(pid) || (
+          getAfter(turnoPath(pid, tid)).data.estado == 'pendiente'
+          && request.resource.data.fecha == getAfter(turnoPath(pid, tid)).data.fecha
+          && request.resource.data.hora == getAfter(turnoPath(pid, tid)).data.hora
+          && request.resource.data.profId == getAfter(turnoPath(pid, tid)).data.profId
+          && request.resource.data.dur == getAfter(turnoPath(pid, tid)).data.dur);
+        allow update: if pMember(pid);
+        allow delete: if pMember(pid) || getAfter(turnoPath(pid, tid)).data.estado == 'cancelado';
+      }
+    }
+
+    // A qué peluquería pertenece cada usuario.
+    match /pelu_usuarios/{uid} {
+      allow read, create: if signed() && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+  }
+}

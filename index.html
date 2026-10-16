@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2A2730">
+<title>VentiunGo · Peluquerías</title>
+<meta name="description" content="Reservá turnos en tu peluquería. Agenda, clientes y servicios para peluquerías.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Peluquerías">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F5F2F9; --line:#E5E0EC; --ink:#2A2730; --muted:#6B6575;
+  --accent:#CDB8E8; --accent-2:#9C7FD0; --peach:#FFE2CF; --mint:#E3F1EA; --ok:#2E8B57; --bad:#C0392B;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--surface-2);color:var(--ink);font:16px/1.5 var(--body);min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+.app{max-width:560px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:96px}
+@media (min-width:600px){ .app{box-shadow:0 0 0 1px var(--line)} }
+
+.top{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px}
+.top .mark{width:36px;height:36px;border-radius:11px;background:var(--accent);color:var(--ink);display:grid;place-items:center;font-size:18px;flex:none;border:0;cursor:pointer}
+.top h1{font:700 18px/1.15 var(--display);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .tt{min-width:0}
+.top small{display:block;color:#CFC7DB;font-size:12px}
+.top .sp{flex:1}
+.top .lnk{background:rgba(255,255,255,.1);border:0;border-radius:10px;padding:8px 12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+
+main{padding:20px 18px}
+h2{font:700 26px/1.15 var(--display);letter-spacing:-.02em;margin:4px 0 6px}
+h3{font:700 18px/1.2 var(--display);margin:0 0 10px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.sec{margin:24px 0 10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.center{text-align:center}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 18px;border-radius:14px;border:0;font-weight:700;cursor:pointer;background:var(--ink);color:#fff;text-decoration:none;transition:transform .1s}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.light{background:var(--surface-2);color:var(--ink)}
+.btn.accent{background:var(--accent);color:var(--ink)}
+.btn.sm{width:auto;padding:9px 14px;font-size:14px;border-radius:11px}
+.btn.danger{background:#FBE4E4;color:var(--bad)}
+.row{display:flex;gap:10px;align-items:center}
+.row > *{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.list{display:grid;gap:10px}
+.err{background:#FBE4E4;color:var(--bad);border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+
+.hero{background:linear-gradient(135deg,#EFE6FA,var(--peach));border-radius:22px;padding:22px;margin-bottom:18px;position:relative;overflow:hidden}
+.hero::after{content:"✂️";position:absolute;right:-10px;bottom:-24px;font-size:110px;opacity:.15;transform:rotate(-15deg)}
+.hero p{margin:0 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{background:rgba(255,255,255,.75);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:500}
+
+.steps{display:flex;gap:6px;margin:4px 0 18px}
+.steps i{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.steps i.on{background:var(--accent-2)}
+
+.opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:14px 16px;cursor:pointer;text-decoration:none}
+.opt:hover{border-color:var(--accent)}
+.opt.sel{border-color:var(--accent-2);background:#FAF7FD}
+.opt .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:none;background:var(--surface-2)}
+.opt .tx{flex:1;min-width:0}
+.opt b{display:block}
+.opt .pr{font-weight:700;white-space:nowrap}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;flex:none}
+
+.days{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{flex:none;width:62px;padding:10px 0;border-radius:14px;border:1.5px solid var(--line);background:#fff;text-align:center;cursor:pointer}
+.day small{display:block;font-size:12px;color:var(--muted);text-transform:capitalize}
+.day b{display:block;font:700 20px/1.2 var(--display)}
+.day.sel{background:var(--ink);border-color:var(--ink);color:#fff}
+.day.sel small{color:#CFC7DB}
+.day.off{opacity:.35;cursor:not-allowed}
+.slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{padding:11px 0;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-weight:700;cursor:pointer;text-align:center}
+.slot.sel{background:var(--accent);border-color:var(--accent-2)}
+.empty{text-align:center;padding:26px 16px;color:var(--muted);background:var(--surface-2);border-radius:var(--r)}
+
+label{display:grid;gap:6px;font-size:14px;font-weight:700;margin-bottom:12px}
+input,select,textarea{padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:400;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent-2)}
+
+.summary{background:var(--surface-2);border-radius:var(--r);padding:16px;display:grid;gap:8px;margin-bottom:16px}
+.summary div{display:flex;justify-content:space-between;gap:12px}
+.summary span{color:var(--muted)}
+.summary b{text-align:right}
+.ok-big{text-align:center;padding:20px 0}
+.ok-big .tick{width:76px;height:76px;border-radius:50%;background:var(--mint);color:var(--ok);display:grid;place-items:center;font-size:38px;margin:0 auto 14px}
+
+.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;background:#fff;border-top:1px solid var(--line);display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:30}
+.tabs button{flex:1;border:0;background:none;padding:8px 0;border-radius:12px;cursor:pointer;display:grid;gap:2px;justify-items:center;font-size:11px;font-weight:700;color:var(--muted)}
+.tabs button span{font-size:20px}
+.tabs button.on{color:var(--ink);background:var(--surface-2)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.kpi{background:var(--surface-2);border-radius:14px;padding:12px;min-width:0}
+.kpi b{display:block;font:700 19px/1.1 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi small{color:var(--muted);font-size:12px;line-height:1.2;display:block;margin-top:4px}
+.turno{display:flex;gap:12px;align-items:stretch;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.turno .hr{font:700 18px/1 var(--display);width:56px;flex:none;padding-top:2px}
+.turno .bar{width:4px;border-radius:2px;flex:none}
+.turno .info{flex:1;min-width:0}
+.turno .info b{display:block}
+.turno .acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.turno.done{opacity:.6}
+.turno.cancel{opacity:.45}
+.turno.cancel .info b{text-decoration:line-through}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);margin-left:6px;vertical-align:middle;text-decoration:none}
+.badge.ok{background:var(--mint);color:var(--ok)}
+.badge.bad{background:#FBE4E4;color:var(--bad)}
+.badge.pend{background:#FFF1CC;color:#8A6A00}
+.filter{display:flex;gap:6px;overflow-x:auto;margin:10px 0 14px;scrollbar-width:none}
+.filter button{flex:none;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px;font-size:14px;font-weight:700;cursor:pointer}
+.filter button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.bars{display:grid;gap:8px}
+.bars .b{display:grid;grid-template-columns:100px 1fr minmax(32px,auto);gap:10px;align-items:center;font-size:14px}
+.bars .t{height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+.bars .t i{display:block;height:100%;background:var(--accent-2);border-radius:5px}
+.weekdays{display:flex;gap:6px;flex-wrap:wrap}
+.weekdays label{display:flex;margin:0;gap:0}
+.weekdays input{display:none}
+.weekdays span{padding:8px 12px;border-radius:10px;border:1.5px solid var(--line);font-weight:700;font-size:14px;cursor:pointer}
+.weekdays input:checked + span{background:var(--accent);border-color:var(--accent-2)}
+.linkbox{display:flex;gap:8px;align-items:center;background:var(--surface-2);border-radius:12px;padding:10px 12px;font-size:13px;word-break:break-all}
+.loading{display:grid;place-items:center;min-height:50vh;color:var(--muted)}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent-2);animation:sp 1s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.modal{position:fixed;inset:0;background:rgba(42,39,48,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+.modal.open{display:flex}
+.sheet{background:#fff;width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto}
+@media (min-width:600px){ .modal{align-items:center} .sheet{border-radius:22px} }
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);opacity:0;visibility:hidden;background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:500;transition:.25s;z-index:60;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+.toast.bad{background:var(--bad)}
+</style>
+</head>
+<body>
+<div class="app" id="app"><div class="loading"><div><div class="spin"></div>Cargando…</div></div></div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+/* ================= Utilidades ================= */
+var DOM_U = "@peluquerias.ventiungo.app";
+var MIOS = "vg_pelu_mis_turnos";
+var DB, AUTH;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const toMin = h => { const [a,b] = String(h).split(":").map(Number); return a*60+b; };
+const toHora = m => `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+const money = n => "$ " + Math.round(n||0).toLocaleString("es-AR");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DIAS = ["dom","lun","mar","mié","jue","vie","sáb"];
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const fechaLarga = s => { const d = new Date(s+"T12:00"); return `${["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][d.getDay()]} ${d.getDate()} de ${["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][d.getMonth()]}`; };
+const COLORES = ["#CDB8E8","#FFD3B6","#BFE3CF","#FFE7A3","#B9D7F0","#F5C2D4"];
+const emailDe = u => String(u||"").trim().toLowerCase() + DOM_U;
+const waNum = t => { t = String(t||"").replace(/\D/g,""); return t.length <= 10 ? "549" + t : t; };
+function errAuth(e){ const c = (e && e.code) || "";
+  if (/email-already-in-use/.test(c)) return "Ese usuario ya está en uso. Elegí otro.";
+  if (/weak-password/.test(c)) return "La contraseña tiene que tener al menos 6 caracteres.";
+  if (/wrong-password|user-not-found|invalid-credential|invalid-login|invalid-email/.test(c)) return "Usuario o contraseña incorrectos.";
+  if (/too-many-requests/.test(c)) return "Demasiados intentos. Esperá unos minutos y probá de nuevo.";
+  if (/network/.test(c)) return "Sin conexión a internet. Probá de nuevo.";
+  if (/permission/.test(c)) return "No tenés permiso para hacer eso.";
+  return "No se pudo completar. Probá de nuevo."; }
+function validarUsuario(u,p,p2){
+  u = String(u||"").trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,30}$/.test(u)) return "El usuario tiene que tener entre 3 y 30 letras o números, sin espacios.";
+  if (String(p||"").length < 6) return "La contraseña tiene que tener al menos 6 caracteres.";
+  if (p2 !== undefined && p !== p2) return "Las contraseñas no coinciden.";
+  return "";
+}
+const misTurnos = () => { try { return JSON.parse(localStorage.getItem(MIOS)) || []; } catch(e){ return []; } };
+const addMio = (pid,id) => { try { localStorage.setItem(MIOS, JSON.stringify([...misTurnos(), {pid,id}].slice(-30))); } catch(e){} };
+
+function servicioDefault(){ return [
+  {id:uid(), nombre:"Corte de pelo", duracion:30, precio:12000, icono:"✂️"},
+  {id:uid(), nombre:"Corte y barba", duracion:45, precio:16000, icono:"🧔"},
+  {id:uid(), nombre:"Brushing", duracion:30, precio:10000, icono:"💨"},
+  {id:uid(), nombre:"Color completo", duracion:90, precio:38000, icono:"🎨"},
+  {id:uid(), nombre:"Mechas / balayage", duracion:120, precio:55000, icono:"✨"},
+  {id:uid(), nombre:"Manicura", duracion:45, precio:14000, icono:"💅"}
+]; }
+
+/* ================= Estado ================= */
+const G = {
+  mode:"loading",          // loading | sinconfig | db
+  view:"home",             // home | pelu | admin | login | alta
+  user:null, uid:null, pid:null, // sesión de la peluquería
+  pel:null, pelId:null,    // peluquería que se está viendo (cliente o admin)
+  lista:null,              // peluquerías públicas
+  turnos:[], miembros:[],  // admin
+  ocup:[], ocupFecha:null, // cliente: horarios ocupados de la fecha elegida
+  mios:[],                 // cliente: mis turnos (docs)
+  loginErr:"", busy:false
+};
+let paso = 0, R = {}, tab = "agenda", agFecha = ymd(new Date()), agProf = "all", busca = "";
+let unsub = {};
+function off(k){ if (unsub[k]) { unsub[k](); delete unsub[k]; } }
+
+const $ = s => document.querySelector(s);
+let toastT;
+function toast(m,bad){ const t=$("#toast"); t.textContent=m; t.className="toast show"+(bad?" bad":""); clearTimeout(toastT); toastT=setTimeout(()=>t.className="toast",2800); }
+function modal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); }
+function cerrar(){ $("#modal").classList.remove("open"); }
+$("#modal").addEventListener("click", e => { if (e.target.id==="modal") cerrar(); });
+const avatar = p => `<span class="avatar" style="background:${esc(p.color)}">${esc((p.nombre||"?")[0])}</span>`;
+const P = () => G.pel || {};
+const serv = id => (P().servicios||[]).find(s => s.id===id) || {nombre:"(servicio eliminado)", duracion:30, precio:0, icono:"✂️"};
+const prof = id => (P().profesionales||[]).find(p => p.id===id) || {nombre:"(sin asignar)", color:"#ddd"};
+const linkCliente = id => location.origin + location.pathname + "?p=" + id;
+
+/* ================= Disponibilidad ================= */
+// ocup: [{hora, dur, profId}]
+function horariosLibres(fecha, servicioId, profId, ocup){
+  const n = P(); const d = new Date(fecha+"T12:00");
+  if (!(n.dias||[]).includes(d.getDay())) return [];
+  const dur = serv(servicioId).duracion, ini = toMin(n.apertura||"09:00"), fin = toMin(n.cierre||"20:00"), paso = +n.intervalo || 30;
+  const ahora = new Date(); const esHoy = fecha === ymd(ahora);
+  const minAhora = ahora.getHours()*60 + ahora.getMinutes() + (+n.anticipacion || 0);
+  const profs = profId === "any" ? (n.profesionales||[]).map(p => p.id) : [profId];
+  const out = [];
+  for (let m = ini; m + dur <= fin; m += paso){
+    if (esHoy && m < minAhora) continue;
+    const libre = profs.find(pid => !ocup.some(o => o.profId===pid && m < toMin(o.hora) + (+o.dur||30) && toMin(o.hora) < m + dur));
+    if (libre) out.push({hora:toHora(m), profId:libre});
+  }
+  return out;
+}
+function ocupDeTurnos(fecha){ return G.turnos.filter(t => t.fecha===fecha && t.estado!=="cancelado").map(t => ({hora:t.hora, dur:t.dur || serv(t.servicioId).duracion, profId:t.profId})); }
+
+/* ================= Arranque ================= */
+function init(){
+  const cfg = window.VENTIUNGO_FIREBASE;
+  if (!window.firebase || !cfg || !cfg.apiKey || /PEGAR/.test(cfg.apiKey)) { G.mode="sinconfig"; return render(); }
+  firebase.initializeApp(cfg);
+  DB = firebase.firestore(); AUTH = firebase.auth(); G.mode="db";
+  const p = new URLSearchParams(location.search).get("p");
+  let primera = true;
+  AUTH.onAuthStateChanged(u => {
+    if (u && !u.isAnonymous) {
+      G.uid = u.uid; G.user = (u.email||"").replace(DOM_U,"");
+      DB.doc("pelu_usuarios/"+u.uid).get().then(sn => {
+        if (!sn.exists) { G.pid = null; if (!G.creando) { AUTH.signOut(); toast("Ese usuario no es de una peluquería", true); } return; }
+        G.pid = sn.data().pid;
+        if (primera) { primera = false; if (p) abrirPelu(p); else abrirAdmin(); }
+        else if (G.view==="login" || G.view==="alta") abrirAdmin();
+        else render();
+      }).catch(() => { if (primera) { primera = false; p ? abrirPelu(p) : abrirHome(); } else render(); });
+    } else {
+      G.uid = null; G.user = null; G.pid = null;
+      ["turnos","miembros"].forEach(off);
+      if (G.view==="admin") { G.view = "home"; }
+      if (primera) { primera = false; if (p) abrirPelu(p); else abrirHome(); } else render();
+    }
+  });
+}
+
+/* ================= Navegación ================= */
+function setURL(p){ const u = location.pathname + (p ? "?p="+p : ""); history.replaceState(null, "", u); }
+function abrirHome(){
+  G.view="home"; setURL(""); off("pel"); G.pel=null; G.pelId=null; render();
+  if (!unsub.lista) unsub.lista = DB.collection("peluquerias").limit(300).onSnapshot(q => {
+    G.lista = q.docs.map(d => Object.assign({id:d.id}, d.data())).sort((a,b)=>String(a.nombre).localeCompare(b.nombre)); if (G.view==="home") render();
+  }, () => { G.lista = []; render(); });
+  cargarMios();
+}
+function abrirPelu(id){
+  G.view="pelu"; paso=0; R={}; setURL(id);
+  if (G.pelId !== id) { off("pel"); G.pel=null; G.pelId=id; }
+  render();
+  if (!unsub.pel) unsub.pel = DB.doc("peluquerias/"+id).onSnapshot(sn => { G.pel = sn.exists ? sn.data() : false; if (G.view==="pelu"||G.view==="admin") render(); }, () => { G.pel=false; render(); });
+  cargarMios();
+}
+function abrirAdmin(){
+  if (!G.pid) { G.view="login"; return render(); }
+  G.view="admin"; setURL("");
+  if (G.pelId !== G.pid) { off("pel"); G.pel=null; G.pelId=G.pid; }
+  if (!unsub.pel) unsub.pel = DB.doc("peluquerias/"+G.pid).onSnapshot(sn => { G.pel = sn.exists ? sn.data() : false; render(); }, () => {});
+  if (!unsub.turnos) {
+    const desde = new Date(); desde.setDate(desde.getDate()-90);
+    unsub.turnos = DB.collection("peluquerias/"+G.pid+"/turnos").where("fecha", ">=", ymd(desde)).onSnapshot(q => {
+      G.turnos = q.docs.map(d => Object.assign({id:d.id}, d.data())); if (G.view==="admin") render();
+    }, e => toast(errAuth(e), true));
+  }
+  if (!unsub.miembros) unsub.miembros = DB.collection("peluquerias/"+G.pid+"/miembros").onSnapshot(q => { G.miembros = q.docs.map(d => Object.assign({uid:d.id}, d.data())); if (G.view==="admin" && tab==="ajustes") render(); }, () => {});
+  render();
+}
+function cargarMios(){
+  const ms = misTurnos(); if (!ms.length) { G.mios=[]; return; }
+  Promise.all(ms.map(m => DB.doc(`peluquerias/${m.pid}/turnos/${m.id}`).get().then(sn => sn.exists ? Object.assign({id:sn.id, pid:m.pid}, sn.data()) : null).catch(()=>null)))
+    .then(r => { G.mios = r.filter(Boolean); if (G.view==="pelu" && paso===0 || G.view==="home") render(); });
+}
+function escucharOcupados(fecha){
+  if (G.ocupFecha === fecha && unsub.ocup) return;
+  off("ocup"); G.ocupFecha = fecha; G.ocup = null;
+  unsub.ocup = DB.collection("peluquerias/"+G.pelId+"/ocupados").where("fecha","==",fecha).onSnapshot(q => {
+    G.ocup = q.docs.map(d => d.data()); if (G.view==="pelu" && paso===3) render();
+  }, () => { G.ocup = []; render(); });
+}
+
+/* ================= Render ================= */
+function header(){
+  let t = "VentiunGo", s = "Peluquerías", btn = "";
+  if ((G.view==="pelu" || G.view==="admin") && G.pel) { t = G.pel.nombre; s = G.view==="admin" ? "Panel de la peluquería" : "Reservá tu turno online"; }
+  if (G.view==="admin") btn = `<button class="lnk" onclick="verComoCliente()">Vista cliente</button>`;
+  else if (G.pid) btn = `<button class="lnk" onclick="abrirAdmin()">Mi panel</button>`;
+  else btn = `<button class="lnk" onclick="G.view='login';G.loginErr='';render()">Soy peluquería</button>`;
+  return `<header class="top"><button class="mark" onclick="${G.view==="admin"?"":"abrirHome()"}" aria-label="Inicio">✂️</button><div class="tt"><h1>${esc(t)}</h1><small>${esc(s)}</small></div><span class="sp"></span>${btn}</header>`;
+}
+function render(){
+  const y = window.scrollY;
+  let body;
+  if (G.mode==="loading") return;
+  if (G.mode==="sinconfig") body = `<main><div class="card"><h2>Falta conectar la base de datos</h2><p class="muted">Abrí <b>config.js</b> y pegá los datos de Firebase, como explica <b>LEEME.html</b>.</p></div></main>`;
+  else if (G.view==="home") body = vHome();
+  else if (G.view==="pelu") body = vCliente();
+  else if (G.view==="login") body = vLogin();
+  else if (G.view==="alta") body = vAlta();
+  else if (G.view==="admin") body = vAdmin();
+  const foco = document.activeElement && document.activeElement.id;
+  $("#app").innerHTML = header() + body;
+  if (foco) { const el = document.getElementById(foco); if (el) { el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
+  if (G._keepScroll) window.scrollTo(0, y); else window.scrollTo(0,0);
+  G._keepScroll = false;
+}
+const keep = () => { G._keepScroll = true; };
+const cargando = () => `<div class="loading"><div><div class="spin"></div>Cargando…</div></div>`;
+
+/* ---------- Home ---------- */
+function vHome(){
+  const prox = G.mios.filter(t => t.estado==="pendiente" && t.fecha >= ymd(new Date()));
+  return `<main>
+    <div class="hero"><p class="muted small">VentiunGo · Peluquerías</p><h2>Reservá tu turno en segundos</h2><p class="small">Elegí tu peluquería, el servicio y el horario.</p></div>
+    ${prox.length ? `<div class="sec">Mis próximos turnos</div><div class="list">${prox.map(t=>`<div class="card"><b>${esc(t.servicio||"Turno")}</b><div class="small muted">${fechaLarga(t.fecha)} · ${t.hora} hs · ${esc(t.peluqueria||"")}</div>
+      <div class="row" style="margin-top:10px"><button class="btn sm light" onclick="abrirPelu('${t.pid}')">Ver peluquería</button><button class="btn sm danger" onclick="cancelarMio('${t.pid}','${t.id}')">Cancelar</button></div></div>`).join("")}</div>` : ""}
+    <div class="sec">Peluquerías</div>
+    ${G.lista===null ? cargando() : G.lista.length ? `<div class="list">${G.lista.map(p=>`<button class="opt" onclick="abrirPelu('${p.id}')"><span class="ic">✂️</span><span class="tx"><b>${esc(p.nombre)}</b><span class="small muted">${esc(p.direccion||"")}</span></span><span class="muted">›</span></button>`).join("")}</div>`
+      : `<div class="empty">Todavía no hay peluquerías cargadas.</div>`}
+    <div style="margin-top:22px"><button class="btn light" onclick="G.view='login';G.loginErr='';render()">¿Tenés una peluquería? Ingresá o creá tu cuenta</button></div>
+  </main>`;
+}
+
+/* ---------- Cliente ---------- */
+function stepper(){ return `<div class="steps">${[1,2,3,4].map(i=>`<i class="${paso>=i?"on":""}"></i>`).join("")}</div>`; }
+function verComoCliente(){ abrirPelu(G.pid); }
+function vCliente(){
+  const n = G.pel;
+  if (n===null) return cargando();
+  if (n===false) return `<main><div class="empty">No encontramos esta peluquería.</div><div style="margin-top:14px"><button class="btn" onclick="abrirHome()">Ver peluquerías</button></div></main>`;
+  if (paso===0){
+    const mios = G.mios.filter(t => t.pid===G.pelId && t.estado==="pendiente" && t.fecha >= ymd(new Date()));
+    const dias = (n.dias||[]).slice().sort((a,b)=>((a||7)-(b||7))).map(d=>DIAS[d]).join(", ");
+    return `<main>
+      <div class="hero"><p class="muted small">Bienvenida/o a</p><h2>${esc(n.nombre)}</h2>
+        ${n.direccion?`<p class="small">📍 ${esc(n.direccion)}</p>`:""}
+        <div class="chips"><span class="chip">🕘 ${esc(n.apertura)} a ${esc(n.cierre)}</span><span class="chip">📅 ${dias}</span></div></div>
+      <button class="btn" onclick="ir(1)" ${(n.servicios||[]).length && (n.profesionales||[]).length ? "" : "disabled"}>Reservar un turno</button>
+      ${mios.length ? `<div class="sec">Mis próximos turnos</div><div class="list">${mios.map(t=>`
+        <div class="turno"><span class="bar" style="background:${esc(prof(t.profId).color)}"></span><div class="info">
+          <b>${esc(serv(t.servicioId).nombre)}</b><span class="small muted">${fechaLarga(t.fecha)} · ${t.hora} hs · con ${esc(prof(t.profId).nombre)}</span>
+          <div class="acts"><button class="btn sm danger" onclick="cancelarMio('${t.pid}','${t.id}')">Cancelar turno</button></div></div></div>`).join("")}</div>` : ""}
+      <div class="sec">Servicios</div>
+      <div class="list">${(n.servicios||[]).map(s=>`<div class="opt" style="cursor:default"><span class="ic">${esc(s.icono||"✂️")}</span><span class="tx"><b>${esc(s.nombre)}</b><span class="small muted">${s.duracion} min</span></span><span class="pr">${money(s.precio)}</span></div>`).join("")}</div>
+      ${n.whatsapp ? `<div style="margin-top:18px"><a class="btn light" href="https://wa.me/${waNum(n.whatsapp)}" target="_blank" rel="noopener">💬 Escribinos por WhatsApp</a></div>` : ""}
+    </main>`;
+  }
+  if (paso===1) return `<main>${stepper()}<h2>¿Qué te querés hacer?</h2><p class="muted">Elegí un servicio.</p>
+    <div class="list">${(n.servicios||[]).map(s=>`<button class="opt ${R.servicioId===s.id?"sel":""}" onclick="R.servicioId='${s.id}';R.hora=null;ir(2)"><span class="ic">${esc(s.icono||"✂️")}</span><span class="tx"><b>${esc(s.nombre)}</b><span class="small muted">${s.duracion} min</span></span><span class="pr">${money(s.precio)}</span></button>`).join("")}</div>
+    <div style="margin-top:16px"><button class="btn light" onclick="ir(0)">Volver</button></div></main>`;
+  if (paso===2) return `<main>${stepper()}<h2>¿Con quién?</h2><p class="muted">Elegí tu profesional o dejalo abierto.</p>
+    <div class="list">
+      <button class="opt ${R.profId==="any"?"sel":""}" onclick="R.profId='any';R.hora=null;ir(3)"><span class="ic">⭐</span><span class="tx"><b>Cualquiera disponible</b><span class="small muted">Te mostramos más horarios</span></span></button>
+      ${(n.profesionales||[]).map(p=>`<button class="opt ${R.profId===p.id?"sel":""}" onclick="R.profId='${p.id}';R.hora=null;ir(3)">${avatar(p)}<span class="tx"><b>${esc(p.nombre)}</b><span class="small muted">${esc(p.rol||"")}</span></span></button>`).join("")}
+    </div><div style="margin-top:16px"><button class="btn light" onclick="ir(1)">Volver</button></div></main>`;
+  if (paso===3){
+    if (!R.fecha) R.fecha = proximoDiaAbierto();
+    setTimeout(() => escucharOcupados(R.fecha));
+    const dias = []; const hoy = new Date();
+    for (let i=0;i<30;i++){ const d = new Date(hoy); d.setDate(d.getDate()+i); dias.push(d); }
+    const libres = G.ocup ? horariosLibres(R.fecha, R.servicioId, R.profId, G.ocup) : null;
+    return `<main>${stepper()}<h2>Elegí día y horario</h2><p class="muted">${esc(serv(R.servicioId).nombre)} · ${serv(R.servicioId).duracion} min</p>
+      <div class="days">${dias.map(d=>{ const f=ymd(d), abierto=(n.dias||[]).includes(d.getDay());
+        return `<button class="day ${f===R.fecha?"sel":""} ${abierto?"":"off"}" ${abierto?`onclick="R.fecha='${f}';R.hora=null;keep();render()"`:"disabled"}><small>${DIAS[d.getDay()]}</small><b>${d.getDate()}</b><small>${MESES[d.getMonth()]}</small></button>`; }).join("")}</div>
+      <div class="sec">${fechaLarga(R.fecha)}</div>
+      ${libres===null ? cargando() : libres.length ? `<div class="slots">${libres.map(l=>`<button class="slot ${R.hora===l.hora?"sel":""}" onclick="R.hora='${l.hora}';R.profAsig='${l.profId}';keep();render()">${l.hora}</button>`).join("")}</div>`
+        : `<div class="empty">No quedan horarios libres este día.<br>Probá con otra fecha.</div>`}
+      <div class="row" style="margin-top:20px"><button class="btn light" onclick="ir(2)">Volver</button><button class="btn" ${R.hora?"":"disabled"} onclick="ir(4)">Continuar</button></div></main>`;
+  }
+  if (paso===4){
+    const s = serv(R.servicioId);
+    let guard = {}; try { guard = JSON.parse(localStorage.getItem("vg_pelu_datos")) || {}; } catch(e){}
+    return `<main>${stepper()}<h2>Tus datos</h2><p class="muted">Para confirmarte el turno.</p>
+      <div class="summary"><div><span>Servicio</span><b>${esc(s.nombre)}</b></div><div><span>Profesional</span><b>${esc(prof(R.profAsig).nombre)}</b></div>
+        <div><span>Día</span><b>${fechaLarga(R.fecha)}</b></div><div><span>Horario</span><b>${R.hora} hs</b></div><div><span>Precio</span><b>${money(s.precio)}</b></div></div>
+      <form onsubmit="confirmar(event)">
+        <label>Nombre y apellido<input name="nombre" required maxlength="60" value="${esc(guard.nombre||"")}" autocomplete="name"></label>
+        <label>Celular<input name="tel" required maxlength="20" inputmode="tel" value="${esc(guard.tel||"")}" placeholder="341 555 0000" autocomplete="tel"></label>
+        <label>Comentario (opcional)<textarea name="nota" rows="2" maxlength="200" placeholder="Ej: traigo foto de referencia"></textarea></label>
+        <div class="row"><button type="button" class="btn light" onclick="ir(3)">Volver</button><button class="btn" ${G.busy?"disabled":""}>${G.busy?"Reservando…":"Confirmar turno"}</button></div>
+      </form></main>`;
+  }
+  if (paso===5){
+    const t = R.hecho;
+    const msg = encodeURIComponent(`¡Hola! Reservé un turno: ${serv(t.servicioId).nombre}, ${fechaLarga(t.fecha)} a las ${t.hora} hs con ${prof(t.profId).nombre}. ${t.cliente.nombre}`);
+    return `<main><div class="ok-big"><div class="tick">✓</div><h2>¡Turno reservado!</h2><p class="muted">Te esperamos el ${fechaLarga(t.fecha).toLowerCase()} a las <b>${t.hora} hs</b>.</p></div>
+      <div class="summary"><div><span>Servicio</span><b>${esc(serv(t.servicioId).nombre)}</b></div><div><span>Profesional</span><b>${esc(prof(t.profId).nombre)}</b></div>${n.direccion?`<div><span>Dirección</span><b>${esc(n.direccion)}</b></div>`:""}</div>
+      <div class="list">${n.whatsapp?`<a class="btn accent" target="_blank" rel="noopener" href="https://wa.me/${waNum(n.whatsapp)}?text=${msg}">💬 Avisar por WhatsApp</a>`:""}
+      <button class="btn" onclick="R={};ir(0)">Listo</button></div></main>`;
+  }
+}
+function proximoDiaAbierto(){ const d = new Date(); for (let i=0;i<14;i++){ if ((P().dias||[]).includes(d.getDay())) return ymd(d); d.setDate(d.getDate()+1);} return ymd(new Date()); }
+function ir(p){ paso = p; render(); }
+function confirmar(e){
+  e.preventDefault(); if (G.busy) return;
+  const f = Object.fromEntries(new FormData(e.target));
+  const libre = horariosLibres(R.fecha, R.servicioId, R.profId, G.ocup||[]).find(l => l.hora===R.hora);
+  if (!libre){ toast("Ese horario se acaba de ocupar. Elegí otro.", true); R.hora=null; return ir(3); }
+  const s = serv(R.servicioId);
+  const ref = DB.collection("peluquerias/"+G.pelId+"/turnos").doc();
+  const t = {fecha:R.fecha, hora:R.hora, dur:s.duracion, servicioId:R.servicioId, servicio:s.nombre, precio:s.precio, profId:libre.profId, peluqueria:G.pel.nombre,
+    cliente:{nombre:f.nombre.trim().slice(0,60), tel:f.tel.replace(/\D/g,"").slice(0,20)}, estado:"pendiente", nota:(f.nota||"").slice(0,200), origen:"cliente", creado:Date.now()};
+  const b = DB.batch();
+  b.set(ref, t);
+  b.set(DB.doc("peluquerias/"+G.pelId+"/ocupados/"+ref.id), {fecha:t.fecha, hora:t.hora, dur:t.dur, profId:t.profId});
+  G.busy = true; render();
+  b.commit().then(() => {
+    try { localStorage.setItem("vg_pelu_datos", JSON.stringify({nombre:t.cliente.nombre, tel:f.tel})); } catch(e){}
+    addMio(G.pelId, ref.id); G.mios.push(Object.assign({id:ref.id, pid:G.pelId}, t));
+    G.busy = false; R = {hecho:t}; ir(5);
+  }).catch(err => { G.busy = false; render(); toast(errAuth(err), true); });
+}
+function cancelarMio(pid, id){
+  modal(`<h3>¿Cancelar el turno?</h3><p class="muted">Liberamos el horario para otra persona.</p>
+    <div class="row"><button class="btn light" onclick="cerrar()">No</button><button class="btn danger" onclick="hacerCancelarMio('${pid}','${id}')">Sí, cancelar</button></div>`);
+}
+function hacerCancelarMio(pid, id){
+  const b = DB.batch();
+  b.update(DB.doc(`peluquerias/${pid}/turnos/${id}`), {estado:"cancelado"});
+  b.delete(DB.doc(`peluquerias/${pid}/ocupados/${id}`));
+  b.commit().then(() => { cerrar(); const t = G.mios.find(x=>x.id===id); if (t) t.estado="cancelado"; render(); toast("Turno cancelado"); })
+   .catch(e => { cerrar(); toast(errAuth(e), true); });
+}
+
+/* ---------- Login / alta ---------- */
+function vLogin(){
+  if (G.pid) { setTimeout(abrirAdmin); return cargando(); }
+  return `<main><h2>Ingreso de la peluquería</h2><p class="muted">Entrá con tu usuario y contraseña.</p>
+    ${G.loginErr?`<div class="err">${esc(G.loginErr)}</div>`:""}
+    <form onsubmit="login(event)" style="margin-top:14px">
+      <label>Usuario<input id="l-user" name="u" required autocomplete="username" autocapitalize="none"></label>
+      <label>Contraseña<input id="l-pass" name="p" type="password" required autocomplete="current-password"></label>
+      <button class="btn" ${G.busy?"disabled":""}>${G.busy?"Entrando…":"Entrar"}</button></form>
+    <div class="sec center">¿Primera vez?</div>
+    <button class="btn light" onclick="G.view='alta';G.loginErr='';render()">Crear la cuenta de mi peluquería</button>
+    <div style="margin-top:10px"><button class="btn light" onclick="abrirHome()">Volver</button></div></main>`;
+}
+function login(e){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  G.busy = true; G.loginErr = ""; render();
+  AUTH.signInWithEmailAndPassword(emailDe(f.u), f.p).then(() => { G.busy = false; }).catch(err => { G.busy = false; G.loginErr = errAuth(err); render(); });
+}
+function vAlta(){
+  return `<main><h2>Creá tu peluquería</h2><p class="muted">En un minuto tenés tu agenda online.</p>
+    ${G.loginErr?`<div class="err">${esc(G.loginErr)}</div>`:""}
+    <form onsubmit="alta(event)" style="margin-top:14px">
+      <label>Nombre de la peluquería<input name="nombre" required maxlength="60"></label>
+      <label>Dirección<input name="direccion" maxlength="100" placeholder="Calle 123, Ciudad"></label>
+      <label>WhatsApp<input name="whatsapp" inputmode="tel" maxlength="20" placeholder="341 555 0000"></label>
+      <label>Usuario para entrar<input name="u" required autocapitalize="none" placeholder="ej: estudioceibo"></label>
+      <div class="row"><label>Contraseña<input name="p" type="password" required minlength="6"></label><label>Repetir<input name="p2" type="password" required minlength="6"></label></div>
+      <button class="btn" ${G.busy?"disabled":""}>${G.busy?"Creando…":"Crear cuenta"}</button></form>
+    <div style="margin-top:10px"><button class="btn light" onclick="G.view='login';G.loginErr='';render()">Ya tengo cuenta</button></div></main>`;
+}
+function alta(e){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  const m = validarUsuario(f.u, f.p, f.p2); if (m) { G.loginErr = m; return render(); }
+  const u = f.u.trim().toLowerCase();
+  G.busy = true; G.loginErr = ""; G.creando = true; render();
+  AUTH.createUserWithEmailAndPassword(emailDe(u), f.p).then(cred => {
+    const myuid = cred.user.uid, ref = DB.collection("peluquerias").doc();
+    const doc = {nombre:f.nombre.trim(), direccion:f.direccion.trim(), whatsapp:f.whatsapp.replace(/\D/g,""), apertura:"09:00", cierre:"20:00", dias:[1,2,3,4,5,6],
+      intervalo:30, anticipacion:30, servicios:servicioDefault(), profesionales:[{id:uid(), nombre:"Yo", rol:"Estilista", color:COLORES[0]}], creador:myuid, alta:Date.now()};
+    return ref.set(doc)
+      .then(() => DB.doc(`peluquerias/${ref.id}/miembros/${myuid}`).set({u, alta:ymd(new Date())}))
+      .then(() => DB.doc("pelu_usuarios/"+myuid).set({pid:ref.id, u}))
+      .then(() => { G.pid = ref.id; G.creando = false; G.busy = false; tab = "servicios"; abrirAdmin(); toast("¡Listo! Revisá tus servicios y tu equipo"); });
+  }).catch(err => { G.busy = false; G.creando = false; G.loginErr = errAuth(err); render(); });
+}
+function salir(){ ["turnos","miembros","pel"].forEach(off); G.pel=null; G.pelId=null; AUTH.signOut().then(abrirHome); }
+
+/* ---------- Admin ---------- */
+function vAdmin(){
+  if (G.pel===null) return cargando();
+  if (G.pel===false) return `<main><div class="empty">No se encontró tu peluquería.</div></main>`;
+  const tabs = [["agenda","📅","Agenda"],["clientes","👥","Clientes"],["resumen","📊","Resumen"],["servicios","✂️","Servicios"],["ajustes","⚙️","Ajustes"]];
+  return `<main>${({agenda:aAgenda, clientes:aClientes, resumen:aResumen, servicios:aServicios, ajustes:aAjustes})[tab]()}</main>
+    <nav class="tabs">${tabs.map(([k,i,l])=>`<button class="${tab===k?"on":""}" onclick="tab='${k}';render()"><span>${i}</span>${l}</button>`).join("")}</nav>`;
+}
+function aAgenda(){
+  const dias=[]; const base = new Date(); base.setDate(base.getDate()-3);
+  for (let i=0;i<24;i++){ const d=new Date(base); d.setDate(d.getDate()+i); dias.push(d); }
+  const del = G.turnos.filter(t=>t.fecha===agFecha && (agProf==="all"||t.profId===agProf)).sort((a,b)=>a.hora.localeCompare(b.hora));
+  const act = del.filter(t=>t.estado!=="cancelado");
+  const ing = act.reduce((a,t)=>a+(t.precio ?? serv(t.servicioId).precio),0);
+  const link = linkCliente(G.pid);
+  return `<h2>Agenda</h2>
+    <div class="days" style="margin-top:12px">${dias.map(d=>{const f=ymd(d); const n=G.turnos.filter(t=>t.fecha===f&&t.estado!=="cancelado").length;
+      return `<button class="day ${f===agFecha?"sel":""}" onclick="agFecha='${f}';keep();render()"><small>${f===ymd(new Date())?"hoy":DIAS[d.getDay()]}</small><b>${d.getDate()}</b><small>${n?n+" t.":"—"}</small></button>`;}).join("")}</div>
+    <div class="filter"><button class="${agProf==="all"?"on":""}" onclick="agProf='all';keep();render()">Todos</button>${(G.pel.profesionales||[]).map(p=>`<button class="${agProf===p.id?"on":""}" onclick="agProf='${p.id}';keep();render()">${esc(p.nombre)}</button>`).join("")}</div>
+    <div class="kpis"><div class="kpi"><b>${act.length}</b><small>turnos</small></div><div class="kpi"><b>${act.filter(t=>t.estado==="atendido").length}</b><small>atendidos</small></div><div class="kpi"><b>${money(ing)}</b><small>estimado del día</small></div></div>
+    <div class="row"><button class="btn accent" onclick="nuevoTurnoAdmin()">+ Agendar turno</button><button class="btn light" onclick="compartir()">🔗 Link para clientes</button></div>
+    <div class="sec">${fechaLarga(agFecha)}</div>
+    ${del.length ? `<div class="list">${del.map(tarjetaTurno).join("")}</div>` : `<div class="empty">No hay turnos este día.<br><span class="small">Compartí tu link para que tus clientes reserven solos.</span></div>`}`;
+}
+function compartir(){
+  const link = linkCliente(G.pid);
+  const msg = encodeURIComponent(`¡Reservá tu turno en ${G.pel.nombre}! ${link}`);
+  modal(`<h3>Link para tus clientes</h3><p class="muted small">Compartilo por WhatsApp, Instagram o ponelo en tu bio. Tus clientes reservan solos y el turno aparece en tu agenda.</p>
+    <div class="linkbox"><span style="flex:1">${esc(link)}</span></div>
+    <div class="list" style="margin-top:12px"><button class="btn" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('Link copiado'),()=>toast('No se pudo copiar',true))">Copiar link</button>
+    <a class="btn accent" href="https://wa.me/?text=${msg}" target="_blank" rel="noopener">💬 Compartir por WhatsApp</a>
+    <button class="btn light" onclick="cerrar()">Cerrar</button></div>`);
+}
+function tarjetaTurno(t){
+  const s=serv(t.servicioId), p=prof(t.profId);
+  const badge = {pendiente:`<span class="badge pend">Pendiente</span>`, atendido:`<span class="badge ok">Atendido</span>`, cancelado:`<span class="badge bad">Cancelado</span>`}[t.estado];
+  return `<div class="turno ${t.estado==="atendido"?"done":""} ${t.estado==="cancelado"?"cancel":""}"><div class="hr">${t.hora}</div><span class="bar" style="background:${esc(p.color)}"></span>
+    <div class="info"><b>${esc(t.cliente.nombre)} ${badge}</b><span class="small muted">${esc(t.servicio||s.nombre)} · ${esc(p.nombre)} · ${money(t.precio ?? s.precio)}</span>
+    ${t.nota?`<div class="small" style="margin-top:4px">📝 ${esc(t.nota)}</div>`:""}
+    <div class="acts">
+      ${t.estado==="pendiente"?`<button class="btn sm" onclick="setEstado('${t.id}','atendido')">✓ Atendido</button><button class="btn sm danger" onclick="setEstado('${t.id}','cancelado')">Cancelar</button>`:`<button class="btn sm light" onclick="setEstado('${t.id}','pendiente')">Deshacer</button>`}
+      ${t.cliente.tel?`<a class="btn sm light" href="https://wa.me/${waNum(t.cliente.tel)}" target="_blank" rel="noopener">💬</a>`:""}
+    </div></div></div>`;
+}
+function setEstado(id, est){
+  const t = G.turnos.find(x=>x.id===id); if (!t) return;
+  const b = DB.batch(), base = "peluquerias/"+G.pid;
+  b.update(DB.doc(`${base}/turnos/${id}`), {estado:est});
+  if (est==="cancelado") b.delete(DB.doc(`${base}/ocupados/${id}`));
+  else b.set(DB.doc(`${base}/ocupados/${id}`), {fecha:t.fecha, hora:t.hora, dur:t.dur||serv(t.servicioId).duracion, profId:t.profId});
+  keep(); b.commit().catch(e => toast(errAuth(e), true));
+}
+function nuevoTurnoAdmin(){
+  modal(`<h3>Agendar turno</h3><form onsubmit="guardarTurnoAdmin(event)">
+    <label>Cliente<input name="nombre" required maxlength="60"></label><label>Celular<input name="tel" inputmode="tel" maxlength="20"></label>
+    <label>Servicio<select name="servicioId" onchange="actualizarHorasAdmin()">${(G.pel.servicios||[]).map(s=>`<option value="${s.id}">${esc(s.nombre)} · ${s.duracion} min</option>`).join("")}</select></label>
+    <label>Profesional<select name="profId" onchange="actualizarHorasAdmin()">${(G.pel.profesionales||[]).map(p=>`<option value="${p.id}" ${agProf===p.id?"selected":""}>${esc(p.nombre)}</option>`).join("")}</select></label>
+    <label>Fecha<input name="fecha" type="date" value="${agFecha}" onchange="actualizarHorasAdmin()" required></label>
+    <label>Horario<select name="hora" id="horaAdm" required></select></label>
+    <div class="row"><button type="button" class="btn light" onclick="cerrar()">Cancelar</button><button class="btn">Guardar</button></div></form>`);
+  actualizarHorasAdmin();
+}
+function actualizarHorasAdmin(){
+  const f = $("#sheet form"); const l = horariosLibres(f.fecha.value, f.servicioId.value, f.profId.value, ocupDeTurnos(f.fecha.value));
+  $("#horaAdm").innerHTML = l.length ? l.map(x=>`<option>${x.hora}</option>`).join("") : `<option value="">Sin horarios libres</option>`;
+}
+function guardarTurnoAdmin(e){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  if (!f.hora) return toast("Elegí un horario libre", true);
+  const s = serv(f.servicioId), base = "peluquerias/"+G.pid;
+  const ref = DB.collection(base+"/turnos").doc();
+  const t = {fecha:f.fecha, hora:f.hora, dur:s.duracion, servicioId:f.servicioId, servicio:s.nombre, precio:s.precio, profId:f.profId, peluqueria:G.pel.nombre,
+    cliente:{nombre:f.nombre.trim(), tel:(f.tel||"").replace(/\D/g,"")}, estado:"pendiente", nota:"", origen:"panel", creado:Date.now()};
+  const b = DB.batch(); b.set(ref, t); b.set(DB.doc(`${base}/ocupados/${ref.id}`), {fecha:t.fecha, hora:t.hora, dur:t.dur, profId:t.profId});
+  b.commit().then(() => { agFecha=f.fecha; cerrar(); toast("Turno agendado"); }).catch(err => toast(errAuth(err), true));
+}
+function clientes(){
+  const m = {};
+  G.turnos.forEach(t=>{ const k = t.cliente.tel || t.cliente.nombre.toLowerCase();
+    m[k] = m[k] || {nombre:t.cliente.nombre, tel:t.cliente.tel, visitas:0, gastado:0, ultima:"", proximo:"", servicios:{}};
+    const c = m[k], sn = t.servicio || serv(t.servicioId).nombre;
+    if (t.estado==="atendido"){ c.visitas++; c.gastado += (t.precio ?? serv(t.servicioId).precio); if (t.fecha>c.ultima) c.ultima=t.fecha; c.servicios[sn]=(c.servicios[sn]||0)+1; }
+    if (t.estado==="pendiente" && t.fecha>=ymd(new Date()) && (!c.proximo || t.fecha<c.proximo)) c.proximo=t.fecha;
+  });
+  return Object.values(m).sort((a,b)=>b.visitas-a.visitas || a.nombre.localeCompare(b.nombre));
+}
+function aClientes(){
+  const todos = clientes();
+  const cs = todos.filter(c => !busca || c.nombre.toLowerCase().includes(busca) || (c.tel||"").includes(busca));
+  return `<h2>Clientes</h2><p class="muted">${todos.length} clientes en los últimos 90 días</p>
+    <input id="busca" placeholder="Buscar por nombre o celular" value="${esc(busca)}" oninput="busca=this.value.toLowerCase();clearTimeout(window._b);window._b=setTimeout(()=>{keep();render()},250)" style="margin:10px 0 14px">
+    ${cs.length?`<div class="list">${cs.map(c=>{ const fav = Object.entries(c.servicios).sort((a,b)=>b[1]-a[1])[0];
+      return `<div class="card"><div class="row" style="align-items:flex-start"><div><b>${esc(c.nombre)}</b><div class="small muted">${c.tel?`<a href="https://wa.me/${waNum(c.tel)}" target="_blank" rel="noopener">${esc(c.tel)}</a>`:"Sin celular"}</div></div>
+        <div style="text-align:right;flex:none"><b>${c.visitas}</b> <span class="small muted">visitas</span><div class="small muted">${money(c.gastado)}</div></div></div>
+        <div class="small muted" style="margin-top:8px">${c.ultima?`Última visita: ${fechaLarga(c.ultima)}`:"Todavía sin visitas"}${fav?` · Suele pedir: ${esc(fav[0])}`:""}${c.proximo?` · <b style="color:var(--ok)">Próximo: ${fechaLarga(c.proximo)}</b>`:""}</div></div>`;}).join("")}</div>`:`<div class="empty">${todos.length?"No se encontraron clientes.":"Cuando lleguen turnos, tus clientes aparecen acá."}</div>`}`;
+}
+function aResumen(){
+  const hoy = new Date(); const desde = new Date(hoy); desde.setDate(desde.getDate()-29);
+  const T = G.turnos.filter(t=>t.fecha>=ymd(desde) && t.fecha<=ymd(hoy));
+  const at = T.filter(t=>t.estado==="atendido"), can = T.filter(t=>t.estado==="cancelado");
+  const pr = t => t.precio ?? serv(t.servicioId).precio;
+  const ing = at.reduce((a,t)=>a+pr(t),0);
+  const porServ = {}, porProf = {}, porDia = [0,0,0,0,0,0,0];
+  at.forEach(t=>{ const sn = t.servicio || serv(t.servicioId).nombre; porServ[sn]=(porServ[sn]||0)+1; porProf[prof(t.profId).nombre]=(porProf[prof(t.profId).nombre]||0)+pr(t); porDia[new Date(t.fecha+"T12:00").getDay()]++; });
+  const barras = (obj, fmt=x=>x) => { const e = Object.entries(obj).sort((a,b)=>b[1]-a[1]); const mx = Math.max(1,...e.map(x=>x[1]));
+    return e.length?`<div class="bars">${e.map(([k,v])=>`<div class="b"><span>${esc(k)}</span><span class="t"><i style="width:${v/mx*100}%"></i></span><b class="small" style="text-align:right;white-space:nowrap">${fmt(v)}</b></div>`).join("")}</div>`:`<div class="empty">Sin datos todavía.</div>`; };
+  const dias = {}; [1,2,3,4,5,6,0].forEach(d=>{ if ((G.pel.dias||[]).includes(d)) dias[DIAS[d]] = porDia[d]; });
+  const prox = G.turnos.filter(t=>t.estado==="pendiente" && t.fecha>=ymd(hoy)).length;
+  return `<h2>Resumen</h2><p class="muted">Últimos 30 días</p>
+    <div class="kpis"><div class="kpi"><b>${money(ing)}</b><small>facturado</small></div><div class="kpi"><b>${at.length}</b><small>atendidos</small></div><div class="kpi"><b>${T.length?Math.round(can.length/T.length*100):0}%</b><small>cancelaciones</small></div></div>
+    <div class="kpis" style="grid-template-columns:1fr 1fr;margin-top:-4px"><div class="kpi"><b>${prox}</b><small>turnos próximos</small></div><div class="kpi"><b>${at.length?money(ing/at.length):"$ 0"}</b><small>ticket promedio</small></div></div>
+    <div class="sec">Servicios más pedidos</div><div class="card">${barras(porServ)}</div>
+    <div class="sec">Facturación por profesional</div><div class="card">${barras(porProf, money)}</div>
+    <div class="sec">Días con más movimiento</div><div class="card">${barras(dias)}</div>`;
+}
+function guardarPel(cambios, msg){
+  return DB.doc("peluquerias/"+G.pid).update(cambios).then(() => { cerrar(); if (msg) toast(msg); }).catch(e => toast(errAuth(e), true));
+}
+function aServicios(){
+  return `<h2>Servicios y equipo</h2>
+    <div class="sec">Servicios y precios</div>
+    <div class="list">${(G.pel.servicios||[]).map(s=>`<button class="opt" onclick="editarServicio('${s.id}')"><span class="ic">${esc(s.icono||"✂️")}</span><span class="tx"><b>${esc(s.nombre)}</b><span class="small muted">${s.duracion} min</span></span><span class="pr">${money(s.precio)}</span></button>`).join("")}</div>
+    <div style="margin-top:10px"><button class="btn light" onclick="editarServicio()">+ Agregar servicio</button></div>
+    <div class="sec">Equipo</div>
+    <div class="list">${(G.pel.profesionales||[]).map(p=>`<button class="opt" onclick="editarProf('${p.id}')">${avatar(p)}<span class="tx"><b>${esc(p.nombre)}</b><span class="small muted">${esc(p.rol||"")}</span></span><span class="muted">›</span></button>`).join("")}</div>
+    <div style="margin-top:10px"><button class="btn light" onclick="editarProf()">+ Agregar profesional</button></div>`;
+}
+function editarServicio(id){
+  const s = (G.pel.servicios||[]).find(x=>x.id===id) || {nombre:"", duracion:30, precio:0, icono:"✂️"};
+  modal(`<h3>${id?"Editar":"Nuevo"} servicio</h3><form onsubmit="guardarServicio(event,'${id||""}')">
+    <label>Nombre<input name="nombre" required maxlength="40" value="${esc(s.nombre)}"></label>
+    <div class="row"><label>Duración (min)<select name="duracion">${[15,30,45,60,75,90,120,150,180].map(d=>`<option ${s.duracion==d?"selected":""}>${d}</option>`).join("")}</select></label>
+    <label>Ícono<select name="icono">${["✂️","🧔","💨","🎨","✨","💅","🧴","💆","👰","🧒"].map(i=>`<option ${s.icono===i?"selected":""}>${i}</option>`).join("")}</select></label></div>
+    <label>Precio ($)<input name="precio" type="number" min="0" step="100" required value="${s.precio}"></label>
+    <div class="row">${id?`<button type="button" class="btn danger" onclick="borrar('servicios','${id}')">Eliminar</button>`:`<button type="button" class="btn light" onclick="cerrar()">Cancelar</button>`}<button class="btn">Guardar</button></div></form>`);
+}
+function guardarServicio(e,id){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  const d = {nombre:f.nombre.trim(), duracion:+f.duracion, precio:+f.precio, icono:f.icono};
+  const arr = (G.pel.servicios||[]).map(x => x.id===id ? Object.assign({}, x, d) : x);
+  if (!id) arr.push(Object.assign({id:uid()}, d));
+  keep(); guardarPel({servicios:arr}, "Servicio guardado");
+}
+function editarProf(id){
+  const ps = G.pel.profesionales||[];
+  const p = ps.find(x=>x.id===id) || {nombre:"", rol:"", color:COLORES[ps.length % COLORES.length]};
+  modal(`<h3>${id?"Editar":"Nuevo"} profesional</h3><form onsubmit="guardarProf(event,'${id||""}')">
+    <label>Nombre<input name="nombre" required maxlength="30" value="${esc(p.nombre)}"></label>
+    <label>Especialidad<input name="rol" maxlength="30" value="${esc(p.rol)}" placeholder="Ej: Colorista"></label>
+    <label>Color en la agenda<select name="color">${COLORES.map((c,i)=>`<option value="${c}" ${p.color===c?"selected":""}>${["Lila","Durazno","Verde","Amarillo","Celeste","Rosa"][i]}</option>`).join("")}</select></label>
+    <div class="row">${id?`<button type="button" class="btn danger" onclick="borrar('profesionales','${id}')">Eliminar</button>`:`<button type="button" class="btn light" onclick="cerrar()">Cancelar</button>`}<button class="btn">Guardar</button></div></form>`);
+}
+function guardarProf(e,id){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  const d = {nombre:f.nombre.trim(), rol:f.rol.trim(), color:f.color};
+  const arr = (G.pel.profesionales||[]).map(x => x.id===id ? Object.assign({}, x, d) : x);
+  if (!id) arr.push(Object.assign({id:uid()}, d));
+  keep(); guardarPel({profesionales:arr}, "Profesional guardado");
+}
+function borrar(col,id){
+  const arr = G.pel[col]||[];
+  if (arr.length<=1) return toast("Tiene que quedar al menos uno", true);
+  keep(); guardarPel({[col]: arr.filter(x=>x.id!==id)}, "Eliminado");
+}
+function aAjustes(){
+  const n = G.pel;
+  return `<h2>Ajustes</h2><form onsubmit="guardarAjustes(event)" style="margin-top:14px">
+    <label>Nombre de la peluquería<input name="nombre" required maxlength="60" value="${esc(n.nombre)}"></label>
+    <label>Dirección<input name="direccion" maxlength="100" value="${esc(n.direccion)}"></label>
+    <label>WhatsApp<input name="whatsapp" inputmode="tel" maxlength="20" value="${esc(n.whatsapp)}" placeholder="341 555 0000"></label>
+    <div class="row"><label>Abre<input name="apertura" type="time" value="${esc(n.apertura)}"></label><label>Cierra<input name="cierre" type="time" value="${esc(n.cierre)}"></label></div>
+    <label>Días de atención<div class="weekdays">${[1,2,3,4,5,6,0].map(d=>`<label><input type="checkbox" name="dia" value="${d}" ${(n.dias||[]).includes(d)?"checked":""}><span>${DIAS[d]}</span></label>`).join("")}</div></label>
+    <div class="row"><label>Turnos cada<select name="intervalo">${[15,20,30,60].map(v=>`<option value="${v}" ${n.intervalo==v?"selected":""}>${v} min</option>`).join("")}</select></label>
+    <label>Anticipación mínima<select name="anticipacion">${[0,30,60,120,1440].map(v=>`<option value="${v}" ${n.anticipacion==v?"selected":""}>${v===0?"Sin mínimo":v<60?v+" min":v===1440?"1 día":v/60+" h"}</option>`).join("")}</select></label></div>
+    <button class="btn">Guardar cambios</button></form>
+    <div class="sec">Link para tus clientes</div>
+    <button class="btn light" onclick="compartir()">🔗 Ver y compartir el link</button>
+    <div class="sec">Usuarios</div>
+    <div class="list">${G.miembros.map(m=>`<div class="card row"><span><b>${esc(m.u)}</b>${m.uid===G.uid?` <span class="badge">vos</span>`:""}<div class="small muted">Desde ${esc(m.alta||"")}</div></span>${m.uid!==G.uid?`<button class="btn sm danger" style="flex:none" onclick="quitarUsuario('${m.uid}')">Quitar</button>`:""}</div>`).join("")}</div>
+    <div style="margin-top:10px"><button class="btn light" onclick="nuevoUsuario()">+ Agregar usuario para tu equipo</button></div>
+    <div class="sec">Sesión</div>
+    <div class="list"><button class="btn light" onclick="exportar()">⬇️ Descargar copia de los turnos</button><button class="btn danger" onclick="salir()">Cerrar sesión</button></div>`;
+}
+function guardarAjustes(e){
+  e.preventDefault(); const fd = new FormData(e.target); const f = Object.fromEntries(fd);
+  const dias = fd.getAll("dia").map(Number); if (!dias.length) return toast("Elegí al menos un día", true);
+  if (toMin(f.cierre) <= toMin(f.apertura)) return toast("El cierre tiene que ser después de la apertura", true);
+  keep(); guardarPel({nombre:f.nombre.trim(), direccion:f.direccion.trim(), whatsapp:f.whatsapp.replace(/\D/g,""), apertura:f.apertura, cierre:f.cierre, dias, intervalo:+f.intervalo, anticipacion:+f.anticipacion}, "Ajustes guardados");
+}
+function nuevoUsuario(){
+  modal(`<h3>Nuevo usuario</h3><p class="muted small">Para que alguien de tu equipo entre al panel con su propio usuario.</p><div id="nu-err"></div>
+    <form onsubmit="crearUsuario(event)"><label>Usuario<input name="u" required autocapitalize="none"></label>
+    <div class="row"><label>Contraseña<input name="p" type="password" required minlength="6"></label><label>Repetir<input name="p2" type="password" required minlength="6"></label></div>
+    <div class="row"><button type="button" class="btn light" onclick="cerrar()">Cancelar</button><button class="btn" id="nu-btn">Crear</button></div></form>`);
+}
+function crearUsuario(e){
+  e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+  const m = validarUsuario(f.u, f.p, f.p2); if (m) { $("#nu-err").innerHTML = `<div class="err">${esc(m)}</div>`; return; }
+  const u = f.u.trim().toLowerCase(); $("#nu-btn").disabled = true;
+  const sec = firebase.apps.find(a => a.name==="sec") || firebase.initializeApp(window.VENTIUNGO_FIREBASE, "sec");
+  const sa = sec.auth();
+  sa.setPersistence(firebase.auth.Auth.Persistence.NONE).then(() => sa.createUserWithEmailAndPassword(emailDe(u), f.p)).then(cred => {
+    const nuid = cred.user.uid;
+    return sec.firestore().doc("pelu_usuarios/"+nuid).set({pid:G.pid, u}).then(() => sa.signOut()).then(() => DB.doc(`peluquerias/${G.pid}/miembros/${nuid}`).set({u, alta:ymd(new Date())}));
+  }).then(() => { cerrar(); toast("Usuario creado"); }).catch(err => { $("#nu-btn").disabled = false; $("#nu-err").innerHTML = `<div class="err">${esc(errAuth(err))}</div>`; });
+}
+function quitarUsuario(id){ DB.doc(`peluquerias/${G.pid}/miembros/${id}`).delete().then(() => toast("Usuario quitado")).catch(e => toast(errAuth(e), true)); }
+function exportar(){
+  const filas = [["Fecha","Hora","Cliente","Celular","Servicio","Profesional","Precio","Estado"]].concat(
+    G.turnos.slice().sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora)).map(t => [t.fecha, t.hora, t.cliente.nombre, t.cliente.tel, t.servicio||serv(t.servicioId).nombre, prof(t.profId).nombre, t.precio ?? "", t.estado]));
+  const csv = "﻿" + filas.map(r => r.map(c => `"${String(c??"").replace(/"/g,'""')}"`).join(";")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"})); a.download = `turnos-${ymd(new Date())}.csv`; a.click();
+}
+
+init();
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", {updateViaCache:"none"}).then(r => r.update()).catch(()=>{}));
+</script>
+</body>
+</html>
