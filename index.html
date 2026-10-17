@@ -647,6 +647,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                     ${currentBusiness.soporte ? `<button onclick="supportSwitch()" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs px-4 py-2 rounded-full font-bold transition">🔄 Cambiar peluquería</button>` : ''}
                                     ${currentBusiness.soporte ? `<button onclick="supportNewOwnerPass()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Nueva clave al dueño</button>` : ''}
                                     <button onclick="changePassword()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Contraseña</button>
+                                    ${currentBusiness.soporte ? '' : `<button onclick="deleteAccount()" class="bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs px-4 py-2 rounded-full font-bold transition">🗑️ Eliminar cuenta</button>`}
                                     <button id="logoutBusinessBtn" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs px-4 py-2 rounded-full font-bold transition">
                                         🚪 Cerrar Sistema
                                     </button>
@@ -2032,6 +2033,50 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 currentBusiness = null; session.del('ventiun_admin');
                 Swal.fire('No se pudo ingresar', 'El nombre o la contraseña no son correctos. Si es la primera vez que entrás desde este celular, entrá antes una vez desde el celular donde creaste el local, o pedile ayuda a VentiunGo.', 'error');
             }
+        }
+        // Eliminar la cuenta del local: borra el local, su página y sus datos (en este celular y en la nube)
+        async function deleteAccount() {
+            if (!currentBusiness || currentBusiness.soporte) return;
+            const name = currentBusiness.name;
+            const r = await Swal.fire({
+                title: 'Eliminar cuenta', icon: 'warning',
+                html: `<p style="font-size:14px">Se borran el local <b>${esc(name)}</b>, su página de clientes, los turnos, la caja, los productos y los socios, en <b>todos los celulares</b>.<br><b>No se puede deshacer.</b></p>`
+                    + `<input id="delPass" type="password" class="swal2-input" placeholder="Tu contraseña" autocomplete="current-password">`
+                    + `<input id="delName" class="swal2-input" placeholder="Escribí: ${esc(name)}" autocomplete="off">`,
+                showCancelButton: true, confirmButtonText: 'Eliminar para siempre', cancelButtonText: 'Cancelar', confirmButtonColor: '#e11d48', focusConfirm: false,
+                preConfirm: () => {
+                    const p = document.getElementById('delPass').value, n = document.getElementById('delName').value;
+                    if (!p) return Swal.showValidationMessage('Ingresá tu contraseña');
+                    if (normName(n) !== normName(name)) return Swal.showValidationMessage('Escribí el nombre del local tal cual para confirmar');
+                    return { p };
+                }
+            });
+            if (!r.isConfirmed || !r.value) return;
+            const biz = businesses.find(b => b.email === currentBusiness.email);
+            if (!biz || biz.password !== r.value.p) return Swal.fire('No se pudo eliminar', 'La contraseña no es correcta.', 'error');
+            Swal.fire({ title: 'Eliminando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            let cloudOk = true;
+            const slug = bizSlug(biz);
+            if (fbInit()) {
+                try { await cloudConnect(biz, r.value.p); } catch (e) {}
+                cloudStop();
+                const u = FB_AUTH.currentUser;
+                if (u) {
+                    try { await privRef(slug).delete(); } catch (e) {}
+                    try { const ps = await portalDoc('p-' + slug).get(); if (ps.exists) { if (ps.data().owner === u.uid) await portalDoc('p-' + slug).delete(); else cloudOk = false; } } catch (e) { cloudOk = false; }
+                    try { const old = await portalDoc('phatto').get(); const od = old.exists ? old.data() : null; if (od && od.owner === u.uid && od.catalog && slugOf(od.catalog.salonName) === slug) await portalDoc('phatto').delete(); } catch (e) {}
+                    try {
+                        if (!u.isAnonymous) await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, r.value.p));
+                        await u.delete();
+                    } catch (e) {}
+                } else cloudOk = false;
+            }
+            cloudStop();
+            store.del(`ventiun_v2_data_${biz.email}`); store.del('ventiun_v2_ts_' + biz.email);
+            businesses = businesses.filter(b => b !== biz); saveBusinesses();
+            currentBusiness = null; currentClient = null; session.del('ventiun_admin');
+            await Swal.fire({ title: 'Cuenta eliminada', text: cloudOk ? `${name} ya no existe. El nombre quedó libre para registrarlo de nuevo.` : `${name} se borró de este celular. Si su página sigue apareciendo, avisale a VentiunGo para terminar de borrarla.`, icon: 'success', confirmButtonColor: '#10b981' });
+            location.href = location.pathname;
         }
         // Soporte: crea una contraseña nueva para el dueño (sirve desde cualquier celular)
         async function supportNewOwnerPass() {
@@ -3557,6 +3602,54 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         });
     </script>
 </div>
+<script>
+// ===== Ojo para ver la contraseña que se escribe =====
+(function () {
+    var OPEN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var SHUT = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    function addEye(inp) {
+        if (inp.dataset.eye) return;
+        inp.dataset.eye = '1';
+        var cs = getComputedStyle(inp);
+        var wrap = document.createElement('span');
+        wrap.style.position = 'relative';
+        wrap.style.display = cs.display === 'inline' ? 'inline-block' : 'block';
+        wrap.style.margin = cs.margin;
+        if (cs.width && /swal2-input/.test(inp.className)) { wrap.style.width = cs.width; wrap.style.marginLeft = 'auto'; wrap.style.marginRight = 'auto'; }
+        inp.parentNode.insertBefore(wrap, inp);
+        wrap.appendChild(inp);
+        inp.style.margin = '0';
+        if (/swal2-input/.test(inp.className)) inp.style.width = '100%';
+        inp.style.paddingRight = '44px';
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'Mostrar contraseña');
+        b.title = 'Mostrar contraseña';
+        b.innerHTML = OPEN;
+        b.style.cssText = 'position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;padding:6px;cursor:pointer;color:#64748b;line-height:0;display:flex;align-items:center;justify-content:center';
+        b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        b.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var show = inp.type === 'password';
+            inp.type = show ? 'text' : 'password';
+            b.innerHTML = show ? SHUT : OPEN;
+            b.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+            b.title = b.getAttribute('aria-label');
+            inp.focus();
+        });
+        wrap.appendChild(b);
+    }
+    function scan(root) {
+        var list = (root || document).querySelectorAll ? (root || document).querySelectorAll('input[type="password"]:not([data-eye])') : [];
+        for (var i = 0; i < list.length; i++) addEye(list[i]);
+    }
+    function start() {
+        scan(document);
+        new MutationObserver(function () { scan(document); }).observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
 <script>
 // ===== Instalar como app en el celular =====
 var __installPrompt = null;
