@@ -1670,8 +1670,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             if (FB_DB) return true;
             try {
                 if (!window.firebase || !window.VENTIUN_FIREBASE) return false;
-                if (!firebase.apps.length) firebase.initializeApp(window.VENTIUN_FIREBASE);
-                FB_DB = firebase.firestore(); FB_AUTH = firebase.auth();
+                // Sesión propia de Peluquerías: no se mezcla con Socios Café ni Flor del Ceibo (comparten la dirección web)
+                const app = firebase.apps.find(a => a.name === 'peluquerias') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'peluquerias');
+                FB_DB = app.firestore(); FB_AUTH = app.auth();
                 return true;
             } catch (e) { return false; }
         }
