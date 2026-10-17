@@ -180,10 +180,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         }
         applyTheme();
 
+        // La sesión del dueño queda guardada en su celular (hasta "Cerrar sistema"), así los links de turnos abren directo el panel
+        const KEEP_KEYS = { ventiun_admin: 1, ventiun_pending_booking: 1 };
         const session = {
-            get(k){ try { return window.sessionStorage.getItem(k); } catch(e){ return null; } },
-            set(k,v){ try { window.sessionStorage.setItem(k,v); } catch(e){} },
-            del(k){ try { window.sessionStorage.removeItem(k); } catch(e){} }
+            get(k){ try { const v = window.sessionStorage.getItem(k); if (v != null || !KEEP_KEYS[k]) return v; return window.localStorage.getItem(k + '_keep'); } catch(e){ return null; } },
+            set(k,v){ try { window.sessionStorage.setItem(k,v); if (KEEP_KEYS[k]) window.localStorage.setItem(k + '_keep', v); } catch(e){} },
+            del(k){ try { window.sessionStorage.removeItem(k); if (KEEP_KEYS[k]) window.localStorage.removeItem(k + '_keep'); } catch(e){} }
         };
 
         function saveBusinesses() {
@@ -2053,6 +2055,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 if (goToOwnPage(biz)) return;
                 Swal.fire({ title: 'Sesión Iniciada', text: `Bienvenido a ${biz.name}`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
                 renderApp();
+                processPendingBooking();
             } catch (e) {
                 currentBusiness = null; session.del('ventiun_admin');
                 Swal.fire('No se pudo ingresar', 'El nombre o la contraseña no son correctos. Si es la primera vez que entrás desde este celular, entrá antes una vez desde el celular donde creaste el local, o pedile ayuda a VentiunGo.', 'error');
@@ -3170,7 +3173,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             session.set('ventiun_pending_booking', m[0]);
             Swal.fire({
                 title: 'Pedido de turno',
-                text: 'Ingresá al panel del local para agendar este turno.',
+                text: 'Ingresá al panel del local para agendar este turno. Después vas a entrar directo, sin volver a poner la contraseña.',
                 icon: 'info',
                 confirmButtonText: 'Ingresar',
                 confirmButtonColor: '#10b981'
@@ -3182,6 +3185,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         }
 
         async function processBookingToken(token) {
+            // Primero traer los turnos de la nube (por si se agendó algo desde otro celular)
+            if (currentBusiness && !currentBusiness.soporte && currentBusiness.password) {
+                Swal.fire({ title: 'Abriendo el pedido…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                try { await Promise.race([cloudConnect(currentBusiness, currentBusiness.password), new Promise(r => setTimeout(r, 8000))]); } catch (e) {}
+                Swal.close();
+            }
             const m = token.match(/^turno-(\d+)-(\d+)-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})-(\d+)$/);
             if (!m) return Swal.fire('Pedido no válido', 'El link del pedido está incompleto.', 'error');
             const [, si, pi, Y, Mo, D, H, Mi, no] = m;
@@ -3605,6 +3614,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     cloudConnectSafe(biz);
                 }
                 renderApp();
+                processPendingBooking();
                 return captureBookingHash();
             }
             session.del('ventiun_resume');
