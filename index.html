@@ -34,7 +34,9 @@ window.VENTIUN_FIREBASE = {
   messagingSenderId: "995147367882",
   appId: "1:995147367882:web:d7116274e65785a633fb33"
 };
-window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base de datos
+// Cada peluquería tiene su propia página: …/peluquerias/?l=nombre-del-local (sin ?l= es PHATTO)
+window.VENTIUN_PORTAL_SLUG = (function () { try { return (new URLSearchParams(location.search).get('l') || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 60); } catch (e) { return ''; } })() || 'phatto';
+window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de este local en la base de datos
 </script>
 <style id="appStyle">
         body {
@@ -300,6 +302,22 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
         }
         // Devuelve un texto de error o null si el horario es válido
         const DEFAULT_PAGE_LINK = 'https://anibalrossia-spec.github.io/peluquerias/';
+        // ---- Varias peluquerías: cada una con su enlace y sus datos ----
+        function slugOf(n) { return String(n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'local'; }
+        function pageLinkFor(slug) { return slug === 'phatto' ? DEFAULT_PAGE_LINK : DEFAULT_PAGE_LINK + '?l=' + slug; }
+        function bizSlug(b) { return b && b.portalId ? String(b.portalId).replace(/^p-/, '') : slugOf(b && b.name); }
+        function bizPortalId(b) { return 'p-' + bizSlug(b); }
+        function bizLink() {
+            const l = settings.pageLink || '';
+            return (!l || /claude\.ai/.test(l) || l.replace(/\/+$/, '') === DEFAULT_PAGE_LINK.replace(/\/+$/, '')) ? pageLinkFor(bizSlug(currentBusiness)) : l;
+        }
+        // Si el local no es el de esta página, abre la página del local (la sesión sigue abierta)
+        function goToOwnPage(biz) {
+            const s = bizSlug(biz);
+            if (s === window.VENTIUN_PORTAL_SLUG) return false;
+            location.href = location.pathname + (s === 'phatto' ? '' : '?l=' + s);
+            return true;
+        }
 
         // Bloques ocupados de la agenda, en minutos desde 1970: { s, e, p (profesional o null) }
         function agendaBlocks(apps, excludeId) {
@@ -399,8 +417,8 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
         }
 
         // Si ya hay una página publicada con el mismo nombre, se recuperan sus datos
-        function importFromPublished(name) {
-            const c = PUBLIC_CATALOG;
+        function importFromPublished(name, cat) {
+            const c = cat || PUBLIC_CATALOG;
             if (!c || normName(c.salonName) !== normName(name)) return;
             let id = Date.now();
             products = (c.services || []).map(x => ({ id: id++, name: x.name, price: x.price, type: 'service', stock: 0, duration: x.duration || DEFAULT_DURATION }))
@@ -428,13 +446,16 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
 
             const id = Date.now();
             // "email" queda solo como identificador interno de los datos guardados
-            const newBiz = { id, name, email: 'local_' + id, password: pwd };
+            const newBiz = { id, name, email: 'local_' + id, password: pwd, portalId: 'p-' + slugOf(name) };
+            const otherPage = bizSlug(newBiz) !== window.VENTIUN_PORTAL_SLUG;
+            if (otherPage) newBiz.needsImport = true;
             businesses.push(newBiz);
             saveBusinesses();
             currentBusiness = newBiz;
             session.set('ventiun_admin', newBiz.email);
             store.set('ventiun_last_biz', newBiz.email);
             loadBusinessData();
+            if (otherPage) { closeAuthModal('registerModal'); goToOwnPage(newBiz); return; }
             importFromPublished(name);
             closeAuthModal('registerModal');
             Swal.fire({
@@ -462,6 +483,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             currentBusiness = biz;
             session.set('ventiun_admin', biz.email);
             store.set('ventiun_last_biz', biz.email);
+            if (goToOwnPage(biz)) return;
             loadBusinessData();
             closeAuthModal('loginModal');
             Swal.fire({
@@ -659,7 +681,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                 // Eventos de Navegación y Sesiones en el Dashboard
                 document.getElementById('logoutBusinessBtn')?.addEventListener('click', () => {
                     if (needsSync()) { const btn = document.getElementById('logoutBusinessBtn'); autoSync(null, { noResume: true, title: 'Guardando cambios en la página de clientes…' }).then(ok => { if (!ok) btn.click(); }); return; }
-                    if (currentBusiness && currentBusiness.soporte) { try { supApp().auth().signOut(); } catch (e) {} }
+                    if (currentBusiness && currentBusiness.soporte) { try { supApp().auth().signOut(); } catch (e) {} setTimeout(() => location.reload(), 300); }
                     currentBusiness = null;
                     currentClient = null;
                     showAdminLanding = false;
@@ -1569,7 +1591,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
         function buildCatalog() {
             const nowMin = Math.round(Date.now() / 60000);
             return {
-                pageLink: settings.pageLink || DEFAULT_PAGE_LINK,
+                pageLink: bizLink(),
                 busy: agendaBlocks(appointments).filter(b => b.e > nowMin && b.s < nowMin + 62 * 1440),
                 membersRev: settings.membersRev || 0,
                 codeSalt: settings.codeSalt,
@@ -1639,14 +1661,31 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                 return true;
             } catch (e) { return false; }
         }
-        function portalDoc() { return FB_DB.collection('portales').doc(window.VENTIUN_PORTAL_ID || 'local'); }
+        function portalDoc(id) { return FB_DB.collection('portales').doc(id || window.VENTIUN_PORTAL_ID); }
+        // Página publicada de una peluquería. Compatibilidad: antes había un único documento 'phatto'.
+        async function fetchPortal(slug, db) {
+            db = db || FB_DB;
+            const sn = await db.collection('portales').doc('p-' + slug).get();
+            if (sn.exists && sn.data().catalog) return { id: 'p-' + slug, data: sn.data() };
+            const old = await db.collection('portales').doc('phatto').get();
+            const oc = old.exists && old.data().catalog;
+            if (oc && slugOf(oc.salonName) === slug) return { id: 'phatto', data: old.data(), legacy: true };
+            return null;
+        }
         // Trae la página de clientes publicada (si falla, queda la copia incluida en el archivo)
         async function loadRemoteCatalog() {
-            if (!fbInit()) return;
-            try {
-                const sn = await Promise.race([portalDoc().get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))]);
-                if (sn.exists) PUBLIC_CATALOG = sn.data().catalog || null;
-            } catch (e) { /* sin conexión: se usa la copia incluida */ }
+            const slug = window.VENTIUN_PORTAL_SLUG;
+            if (PUBLIC_CATALOG && slugOf(PUBLIC_CATALOG.salonName) !== slug) PUBLIC_CATALOG = null;
+            if (fbInit()) {
+                try {
+                    const r = await Promise.race([fetchPortal(slug), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))]);
+                    if (r && r.data.catalog) PUBLIC_CATALOG = r.data.catalog;
+                } catch (e) { /* sin conexión: se usa la copia incluida */ }
+            }
+            if (PUBLIC_CATALOG) {
+                const pl = String(PUBLIC_CATALOG.pageLink || '');
+                if (!pl || /claude\.ai/.test(pl) || (slug !== 'phatto' && pl.replace(/\/+$/, '') === DEFAULT_PAGE_LINK.replace(/\/+$/, ''))) PUBLIC_CATALOG.pageLink = pageLinkFor(slug);
+            }
         }
         // Sesión del dueño en la base de datos: queda guardada en este navegador
         async function ensureOwnerAuth() {
@@ -1674,7 +1713,22 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
             return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
         }
-        function resetHashOf(code) { return sha256Hex('vg-reset|' + (window.VENTIUN_PORTAL_ID || 'local') + '|' + String(code).trim()); }
+        function resetHashOf(code, pid) { return sha256Hex('vg-reset|' + (pid || window.VENTIUN_PORTAL_ID) + '|' + String(code).trim()); }
+        const resetOk = async (rs, code, pid) => !!(rs && rs.h && !(rs.exp && Date.now() > rs.exp) && rs.h === await resetHashOf(code, pid));
+        // Soporte: lista de peluquerías publicadas
+        async function supportPortals() {
+            const q = await supApp().firestore().collection('portales').get();
+            const map = {}; let legacy = null;
+            q.forEach(d => {
+                const c = d.data().catalog; if (!c || !c.salonName) return;
+                if (d.id === 'phatto') { legacy = { slug: slugOf(c.salonName), cat: c, owner: d.data().owner || null }; return; }
+                if (d.id.indexOf('p-') === 0) map[d.id.slice(2)] = { slug: d.id.slice(2), cat: c, owner: d.data().owner || null };
+            });
+            if (legacy && !map[legacy.slug]) map[legacy.slug] = legacy;
+            let emb = null; try { emb = JSON.parse(document.getElementById('publicCatalog').textContent); } catch (e) {}
+            if (emb && emb.salonName && !map[slugOf(emb.salonName)]) map[slugOf(emb.salonName)] = { slug: slugOf(emb.salonName), cat: emb, owner: null };
+            return Object.values(map).sort((a, b) => String(a.cat.salonName).localeCompare(String(b.cat.salonName)));
+        }
         const passFields = (withOld) => (withOld ? `<input id="cpOld" type="password" class="swal2-input" placeholder="Contraseña actual" autocomplete="current-password">` : '')
             + `<input id="cpP1" type="password" class="swal2-input" placeholder="Contraseña nueva (mínimo 6)" autocomplete="new-password">`
             + `<input id="cpP2" type="password" class="swal2-input" placeholder="Repetir contraseña nueva" autocomplete="new-password">`;
@@ -1717,19 +1771,26 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             if (!fbInit()) return Swal.fire('Sin conexión', 'Necesitás internet para validar el código.', 'error');
             Swal.fire({ title: 'Verificando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                const sn = await portalDoc().get();
-                const rs = sn.exists ? sn.data().reset : null;
-                if (!rs || !rs.h || (rs.exp && Date.now() > rs.exp) || rs.h !== await resetHashOf(r.value.c)) {
-                    return Swal.fire('Código incorrecto', 'El código no es válido o ya venció. Pedí uno nuevo por WhatsApp.', 'error');
+                const typedName = ((document.getElementById('loginName') || {}).value || '').trim();
+                const slug = normName(typedName) ? slugOf(typedName) : window.VENTIUN_PORTAL_SLUG;
+                const sn = await portalDoc('p-' + slug).get();
+                let ok = sn.exists && await resetOk(sn.data().reset, r.value.c, 'p-' + slug);
+                let cat = sn.exists ? sn.data().catalog : null;
+                if (!ok) {
+                    const old = await portalDoc('phatto').get(); const od = old.exists ? old.data() : null;
+                    if (od && od.catalog && slugOf(od.catalog.salonName) === slug && await resetOk(od.reset, r.value.c, 'phatto')) { ok = true; cat = cat || od.catalog; }
                 }
-                const salon = (sn.data().catalog && sn.data().catalog.salonName) || (PUBLIC_CATALOG && PUBLIC_CATALOG.salonName);
+                if (!ok) {
+                    return Swal.fire('Código incorrecto', 'El código no es válido o ya venció. Revisá que el nombre de la peluquería esté bien escrito o pedí uno nuevo por WhatsApp.', 'error');
+                }
+                const salon = (cat && cat.salonName) || typedName || (PUBLIC_CATALOG && PUBLIC_CATALOG.salonName);
                 const biz = businesses.find(b => salon && normName(b.name) === normName(salon)) || (businesses.length === 1 ? businesses[0] : null);
                 if (!biz) {
                     return Swal.fire('Este celular no tiene el panel', 'Tocá "Registrar mi local" y poné el nombre de la peluquería con una contraseña nueva: se recuperan los datos publicados.', 'info');
                 }
                 biz.password = r.value.p1;
                 saveBusinesses();
-                try { const u = FB_AUTH.currentUser; if (u && sn.data().owner === u.uid) await portalDoc().update({ reset: firebase.firestore.FieldValue.delete() }); } catch (e) {}
+                try { const u = FB_AUTH.currentUser; if (u && sn.exists && sn.data().owner === u.uid) await portalDoc('p-' + slug).update({ reset: firebase.firestore.FieldValue.delete() }); } catch (e) {}
                 closeAuthModal('loginModal');
                 await Swal.fire({ title: '¡Listo!', text: `Ya podés entrar a ${biz.name} con tu contraseña nueva.`, icon: 'success', confirmButtonColor: '#10b981' });
                 openAuthModal('loginModal');
@@ -1791,8 +1852,12 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
             Swal.fire({ title: 'Generando código…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                const pdoc = supApp().firestore().collection('portales').doc(window.VENTIUN_PORTAL_ID || 'local');
-                await pdoc.update({ reset: { h: await resetHashOf(code), exp: Date.now() + 24 * 3600 * 1000 } });
+                const pid = bizPortalId(currentBusiness);
+                const pdoc = supApp().firestore().collection('portales').doc(pid);
+                const cur = await pdoc.get();
+                const data = { reset: { h: await resetHashOf(code, pid), exp: Date.now() + 24 * 3600 * 1000 } };
+                if (!cur.exists) data.owner = currentBusiness.legacyOwner || null;
+                await pdoc.set(data, { merge: true });
                 Swal.fire({
                     title: 'Código para el dueño',
                     html: `<div style="font-size:36px;font-weight:800;letter-spacing:8px;margin:6px 0 12px">${code}</div><p style="font-size:14px">Pasale este código al dueño de <b>${esc(currentBusiness.name)}</b>. En su celular: <b>Acceso del local → ¿Olvidaste tu contraseña? → Ya tengo el código</b>. Vence en 24 horas.</p>`,
@@ -1811,16 +1876,25 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             try {
                 const a = supApp().auth();
                 await supSignIn(a, pwd);
-                await loadRemoteCatalog();
-                if (!PUBLIC_CATALOG || !PUBLIC_CATALOG.salonName) {
+                const list = await supportPortals();
+                if (!list.length) {
                     await a.signOut();
-                    return Swal.fire('Sin página publicada', 'Este local todavía no publicó su página, así que no hay datos para ver.', 'info');
+                    return Swal.fire('Sin páginas publicadas', 'Todavía ninguna peluquería publicó su página.', 'info');
                 }
-                const biz = { id: 'soporte', name: PUBLIC_CATALOG.salonName, email: 'soporte_' + (window.VENTIUN_PORTAL_ID || 'local'), password: null, soporte: true };
+                const urlPick = new URLSearchParams(location.search).get('l') ? list.find(x => x.slug === window.VENTIUN_PORTAL_SLUG) : null;
+                let pick = urlPick || (list.length === 1 ? list[0] : null);
+                if (!pick) {
+                    const opts = {}; list.forEach(x => { opts[x.slug] = x.cat.salonName; });
+                    const sel = await Swal.fire({ title: '¿Qué peluquería querés ver?', input: 'select', inputOptions: opts, inputValue: list[0].slug, showCancelButton: true, confirmButtonText: 'Entrar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981' });
+                    if (!sel.isConfirmed) { await a.signOut(); return; }
+                    pick = list.find(x => x.slug === sel.value) || list[0];
+                }
+                PUBLIC_CATALOG = pick.cat;
+                const biz = { id: 'soporte', name: pick.cat.salonName, portalId: 'p-' + pick.slug, legacyOwner: pick.owner, email: 'soporte_' + pick.slug, password: null, soporte: true };
                 currentBusiness = biz;
                 store.del(`ventiun_v2_data_${biz.email}`);
                 loadBusinessData();
-                importFromPublished(biz.name);
+                importFromPublished(biz.name, pick.cat);
                 closeAuthModal('loginModal');
                 Swal.close();
                 Swal.fire({ title: 'Soporte VentiunGo', text: `Estás viendo ${biz.name} con los datos de su página publicada.`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
@@ -1842,9 +1916,10 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                 const sup = !!(currentBusiness && currentBusiness.soporte);
                 const user = sup ? supApp().auth().currentUser : await ensureOwnerAuth();
                 if (!user) throw { code: 'permission-denied' };
-                const pdoc = sup ? supApp().firestore().collection('portales').doc(window.VENTIUN_PORTAL_ID || 'local') : portalDoc();
+                const pid = bizPortalId(currentBusiness);
+                const pdoc = sup ? supApp().firestore().collection('portales').doc(pid) : portalDoc(pid);
                 let owner = user.uid;
-                if (sup) { const cur = await pdoc.get(); if (cur.exists && cur.data().owner) owner = cur.data().owner; }
+                if (sup) { const cur = await pdoc.get(); owner = (cur.exists && cur.data().owner) || currentBusiness.legacyOwner || null; }
                 const clean = catalog ? JSON.parse(JSON.stringify(catalog)) : null;
                 await pdoc.set({ owner, catalog: clean, updatedAt: new Date().toISOString() });
                 PUBLIC_CATALOG = clean;
@@ -1908,7 +1983,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                             </div>
                             <div class="sm:col-span-2">
                                 <label for="cfgPageLink" class="block text-xs font-bold text-slate-500 mb-1">LINK DE ESTA PÁGINA (PARA MANDAR A LOS SOCIOS)</label>
-                                <input id="cfgPageLink" type="url" placeholder="https://anibalrossia-spec.github.io/peluquerias/" value="${esc(settings.pageLink)}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
+                                <input id="cfgPageLink" type="url" placeholder="https://anibalrossia-spec.github.io/peluquerias/" value="${esc(bizLink())}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
                                 <p class="text-[11px] text-slate-400 mt-1">Se agrega al mensaje de WhatsApp con el que le mandás el código a cada socio.</p>
                             </div>
                             <div class="sm:col-span-2">
@@ -2639,7 +2714,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             const body = document.getElementById('membersBody');
             function inviteText(m) {
                 const salon = currentBusiness.name;
-                return `¡Hola ${m.name}! Ya sos socio de ${salon} (N° ${m.no}).\nTu código para pedir turnos es: ${fmtCode(m.code)}` + (settings.pageLink ? `\nIngresá acá: ${settings.pageLink}` : '');
+                return `¡Hola ${m.name}! Ya sos socio de ${salon} (N° ${m.no}).\nTu código para pedir turnos es: ${fmtCode(m.code)}` + `\nIngresá acá: ${bizLink()}`;
             }
             function draw() {
                 const q = (document.getElementById('memberSearch').value || '').toLowerCase().trim();
@@ -3241,7 +3316,10 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             if (!raw) {
                 const adminEmail = session.get('ventiun_admin');
                 const biz = adminEmail && businesses.find(b => b.email === adminEmail);
-                if (biz) { currentBusiness = biz; loadBusinessData(); }
+                if (biz) {
+                    currentBusiness = biz; loadBusinessData();
+                    if (biz.needsImport) { delete biz.needsImport; saveBusinesses(); importFromPublished(biz.name); }
+                }
                 renderApp();
                 return captureBookingHash();
             }
