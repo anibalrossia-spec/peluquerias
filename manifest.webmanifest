@@ -1,13 +1,14 @@
 {
   "name": "VentiunGo · Peluquerías",
   "short_name": "Peluquerías",
-  "description": "Turnos online para peluquerías: reserva para clientes y agenda para la peluquería.",
+  "description": "Portal de socios: pedí tu turno con tu código, y agenda, caja y ventas para la peluquería.",
   "lang": "es",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#FFFFFF",
-  "theme_color": "#2A2730",
+  "theme_color": "#10b981",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
