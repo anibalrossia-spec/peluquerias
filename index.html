@@ -501,6 +501,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                                     <button onclick="handleLogin()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">
                                         🔐 Iniciar Sesión
                                     </button>
+                                    <button type="button" onclick="forgotPassword()" class="w-full text-center text-xs font-semibold text-emerald-600 hover:underline">¿Olvidaste tu contraseña?</button>
                                 </div>
                                 <p class="mt-5 pt-4 border-t border-slate-100 text-center text-xs text-slate-400">¿Primera vez? <button onclick="closeAuthModal('loginModal'); openAuthModal('registerModal')" class="font-semibold text-emerald-600 hover:underline">Registrar mi local</button></p>
                             </div>
@@ -603,7 +604,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                                             ${esc(currentBusiness.name)}
                                             <span class="text-xs font-normal px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">Local Activo</span>
                                         </h1>
-                                        ${currentBusiness.email && !currentBusiness.email.startsWith('local_') ? `<p class="text-xs text-slate-400">${esc(currentBusiness.email)}</p>` : ''}
+                                        ${currentBusiness.soporte ? `<p class="text-xs font-semibold text-amber-600">🛠️ Modo soporte VentiunGo</p>` : (currentBusiness.email && !currentBusiness.email.startsWith('local_') ? `<p class="text-xs text-slate-400">${esc(currentBusiness.email)}</p>` : '')}
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-3">
@@ -611,6 +612,8 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                                     <button id="previewPublicBtn" class="google-btn text-xs px-4 py-2 rounded-full font-bold transition">
                                         👀 Ver página de clientes
                                     </button>
+                                    ${currentBusiness.soporte ? `<button onclick="supportCode()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs px-4 py-2 rounded-full font-bold transition">🔢 Código para el dueño</button>` : ''}
+                                    <button onclick="changePassword()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Contraseña</button>
                                     <button id="logoutBusinessBtn" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs px-4 py-2 rounded-full font-bold transition">
                                         🚪 Cerrar Sistema
                                     </button>
@@ -1656,7 +1659,149 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
         // ===== Acceso de soporte de VentiunGo =====
         // La contraseña no está en el código: la valida la base de datos. Usa una sesión aparte,
         // así no se pierde la sesión del dueño si entra desde su mismo dispositivo.
-        const SUP_EMAIL = 'soporte@ventiungo.app';
+        const SUP_RECOVERY = 'anibalrossia@gmail.com';
+        const SUP_EMAILS = [SUP_RECOVERY, 'soporte@ventiungo.app'];
+        const WA_SUPPORT = '5493415628884';
+        async function supSignIn(auth, pwd) {
+            for (const em of SUP_EMAILS) {
+                try { return await auth.signInWithEmailAndPassword(em, pwd); }
+                catch (e) { if (!/user-not-found|invalid-credential|invalid-login|wrong-password|invalid-email/.test((e && e.code) || '')) throw e; }
+            }
+            throw { code: 'clave' };
+        }
+        function waSupport(msg) { window.open('https://wa.me/' + WA_SUPPORT + '?text=' + encodeURIComponent(msg), '_blank'); }
+        async function sha256Hex(s) {
+            const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+            return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+        function resetHashOf(code) { return sha256Hex('vg-reset|' + (window.VENTIUN_PORTAL_ID || 'local') + '|' + String(code).trim()); }
+        const passFields = (withOld) => (withOld ? `<input id="cpOld" type="password" class="swal2-input" placeholder="Contraseña actual" autocomplete="current-password">` : '')
+            + `<input id="cpP1" type="password" class="swal2-input" placeholder="Contraseña nueva (mínimo 6)" autocomplete="new-password">`
+            + `<input id="cpP2" type="password" class="swal2-input" placeholder="Repetir contraseña nueva" autocomplete="new-password">`;
+        function readPassFields(withOld) {
+            const old = withOld ? document.getElementById('cpOld').value : '';
+            const p1 = document.getElementById('cpP1').value, p2 = document.getElementById('cpP2').value;
+            if (withOld && !old) return Swal.showValidationMessage('Ingresá tu contraseña actual');
+            if (p1.length < 6) return Swal.showValidationMessage('La contraseña nueva tiene que tener al menos 6 caracteres');
+            if (p1 !== p2) return Swal.showValidationMessage('Las contraseñas nuevas no coinciden');
+            return { old, p1 };
+        }
+
+        // ¿Olvidaste tu contraseña? (dueño: código por WhatsApp · soporte: enlace por email)
+        async function forgotPassword() {
+            const typed = (document.getElementById('loginName') || {}).value || '';
+            if (normName(typed) === 'ventiungo') return supportForgot();
+            const salon = (PUBLIC_CATALOG && PUBLIC_CATALOG.salonName) || typed.trim() || 'mi peluquería';
+            const r = await Swal.fire({
+                title: '¿Olvidaste tu contraseña?',
+                html: 'Escribile a <b>VentiunGo</b> por WhatsApp y te pasamos un <b>código</b> para crear una contraseña nueva en este celular.',
+                icon: 'question', showDenyButton: true, showCancelButton: true,
+                confirmButtonText: '💬 Escribir por WhatsApp', denyButtonText: '🔢 Ya tengo el código', cancelButtonText: 'Cerrar',
+                confirmButtonColor: '#10b981', denyButtonColor: '#0f172a'
+            });
+            if (r.isConfirmed) return waSupport(`Hola VentiunGo, olvidé la contraseña del panel de ${salon} (app Peluquerías). ¿Me pasan un código para cambiarla?`);
+            if (r.isDenied) return resetWithCode();
+        }
+        async function resetWithCode() {
+            const r = await Swal.fire({
+                title: 'Crear contraseña nueva',
+                html: `<input id="rcCode" class="swal2-input" inputmode="numeric" autocomplete="one-time-code" placeholder="Código de VentiunGo">` + passFields(false),
+                showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981', focusConfirm: false,
+                preConfirm: () => {
+                    const c = document.getElementById('rcCode').value.trim();
+                    if (!c) return Swal.showValidationMessage('Ingresá el código que te pasó VentiunGo');
+                    const p = readPassFields(false); return p ? { c, p1: p.p1 } : p;
+                }
+            });
+            if (!r.isConfirmed || !r.value) return;
+            if (!fbInit()) return Swal.fire('Sin conexión', 'Necesitás internet para validar el código.', 'error');
+            Swal.fire({ title: 'Verificando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const sn = await portalDoc().get();
+                const rs = sn.exists ? sn.data().reset : null;
+                if (!rs || !rs.h || (rs.exp && Date.now() > rs.exp) || rs.h !== await resetHashOf(r.value.c)) {
+                    return Swal.fire('Código incorrecto', 'El código no es válido o ya venció. Pedí uno nuevo por WhatsApp.', 'error');
+                }
+                const salon = (sn.data().catalog && sn.data().catalog.salonName) || (PUBLIC_CATALOG && PUBLIC_CATALOG.salonName);
+                const biz = businesses.find(b => salon && normName(b.name) === normName(salon)) || (businesses.length === 1 ? businesses[0] : null);
+                if (!biz) {
+                    return Swal.fire('Este celular no tiene el panel', 'Tocá "Registrar mi local" y poné el nombre de la peluquería con una contraseña nueva: se recuperan los datos publicados.', 'info');
+                }
+                biz.password = r.value.p1;
+                saveBusinesses();
+                try { const u = FB_AUTH.currentUser; if (u && sn.data().owner === u.uid) await portalDoc().update({ reset: firebase.firestore.FieldValue.delete() }); } catch (e) {}
+                closeAuthModal('loginModal');
+                await Swal.fire({ title: '¡Listo!', text: `Ya podés entrar a ${biz.name} con tu contraseña nueva.`, icon: 'success', confirmButtonColor: '#10b981' });
+                openAuthModal('loginModal');
+                const ln = document.getElementById('loginName'); if (ln) ln.value = biz.name;
+            } catch (e) {
+                Swal.fire('No se pudo verificar', 'Revisá la conexión y probá de nuevo.', 'error');
+            }
+        }
+        async function supportForgot() {
+            const r = await Swal.fire({ title: 'Contraseña de soporte', text: `Te mandamos un enlace a ${SUP_RECOVERY} para crear una contraseña nueva.`, icon: 'question', showCancelButton: true, confirmButtonText: 'Enviar enlace', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981' });
+            if (!r.isConfirmed) return;
+            try { if (fbInit()) await supApp().auth().sendPasswordResetEmail(SUP_RECOVERY); } catch (e) {}
+            Swal.fire('Enviado', `Si ${SUP_RECOVERY} ya está vinculado a la cuenta de soporte, en unos minutos te llega el email (revisá también Spam).`, 'success');
+        }
+        async function supLinkEmail() {
+            const u = supApp().auth().currentUser; if (!u) return;
+            try {
+                await u.verifyBeforeUpdateEmail(SUP_RECOVERY);
+                Swal.fire('Revisá tu email', `Te mandamos un mensaje a ${SUP_RECOVERY}. Abrilo y tocá el enlace para confirmar. Desde ese momento, si olvidás la contraseña de soporte, te llega un enlace para crear una nueva.`, 'success');
+            } catch (e) {
+                const c = (e && e.code) || '';
+                Swal.fire('No se pudo vincular', /recent-login/.test(c) ? 'Cerrá sesión, volvé a entrar como Ventiungo y probá de nuevo.' : /already-in-use/.test(c) ? 'Ese email ya lo usa otra cuenta.' : 'Probá de nuevo en unos minutos.', 'error');
+            }
+        }
+        // Cambiar contraseña (dueño: la del panel en este celular · soporte: la de la cuenta Ventiungo)
+        async function changePassword() {
+            const sup = !!(currentBusiness && currentBusiness.soporte);
+            const su = sup ? supApp().auth().currentUser : null;
+            const linked = !!(su && su.email === SUP_RECOVERY);
+            const r = await Swal.fire({
+                title: sup ? 'Contraseña de soporte' : 'Cambiar contraseña',
+                html: passFields(true) + (sup ? `<p style="font-size:13px;margin-top:14px;color:#64748b">${linked ? `Email para recuperarla: <b>${SUP_RECOVERY}</b>` : `Todavía no tiene email para recuperarla.`}</p>` : ''),
+                showCancelButton: true, showDenyButton: sup && !linked,
+                confirmButtonText: 'Guardar', denyButtonText: `📧 Vincular ${SUP_RECOVERY}`, cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#10b981', denyButtonColor: '#0f172a', focusConfirm: false,
+                preConfirm: () => readPassFields(true)
+            });
+            if (r.isDenied) return supLinkEmail();
+            if (!r.isConfirmed || !r.value) return;
+            const { old, p1 } = r.value;
+            if (sup) {
+                try {
+                    await su.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(su.email, old));
+                    await su.updatePassword(p1);
+                    Swal.fire('Contraseña cambiada', 'Desde ahora entrás como Ventiungo con la contraseña nueva en las tres apps.', 'success');
+                } catch (e) {
+                    Swal.fire('No se pudo cambiar', /wrong-password|invalid-credential|invalid-login/.test((e && e.code) || '') ? 'La contraseña actual no es correcta.' : 'Probá de nuevo en unos minutos.', 'error');
+                }
+                return;
+            }
+            const biz = businesses.find(b => b.email === currentBusiness.email);
+            if (!biz || biz.password !== old) return Swal.fire('No se pudo cambiar', 'La contraseña actual no es correcta.', 'error');
+            biz.password = p1; currentBusiness.password = p1;
+            saveBusinesses();
+            Swal.fire({ title: 'Contraseña cambiada', text: 'La próxima vez entrá con la contraseña nueva.', icon: 'success', confirmButtonColor: '#10b981' });
+        }
+        // Soporte: genera un código de un solo uso (24 h) para que el dueño cree una contraseña nueva
+        async function supportCode() {
+            const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
+            Swal.fire({ title: 'Generando código…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const pdoc = supApp().firestore().collection('portales').doc(window.VENTIUN_PORTAL_ID || 'local');
+                await pdoc.update({ reset: { h: await resetHashOf(code), exp: Date.now() + 24 * 3600 * 1000 } });
+                Swal.fire({
+                    title: 'Código para el dueño',
+                    html: `<div style="font-size:36px;font-weight:800;letter-spacing:8px;margin:6px 0 12px">${code}</div><p style="font-size:14px">Pasale este código al dueño de <b>${esc(currentBusiness.name)}</b>. En su celular: <b>Acceso del local → ¿Olvidaste tu contraseña? → Ya tengo el código</b>. Vence en 24 horas.</p>`,
+                    icon: 'success', confirmButtonText: 'Listo', confirmButtonColor: '#10b981'
+                });
+            } catch (e) {
+                Swal.fire('No se pudo generar', /permission/.test((e && e.code) || '') ? 'Falta activar el permiso de soporte en la base de datos.' : 'Revisá la conexión y probá de nuevo.', 'error');
+            }
+        }
         function supApp() {
             return firebase.apps.find(a => a.name === 'soporte') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'soporte');
         }
@@ -1665,13 +1810,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             Swal.fire({ title: 'Verificando soporte…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
                 const a = supApp().auth();
-                try {
-                    await a.signInWithEmailAndPassword(SUP_EMAIL, pwd);
-                } catch (e) {
-                    if (!/user-not-found|invalid-credential|invalid-login/.test((e && e.code) || '')) throw e;
-                    try { await a.createUserWithEmailAndPassword(SUP_EMAIL, pwd); }
-                    catch (e2) { if (e2.code === 'auth/email-already-in-use') throw { code: 'clave' }; throw e2; }
-                }
+                await supSignIn(a, pwd);
                 await loadRemoteCatalog();
                 if (!PUBLIC_CATALOG || !PUBLIC_CATALOG.salonName) {
                     await a.signOut();
