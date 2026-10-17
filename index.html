@@ -452,6 +452,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             if (!normName(name) || !pwd) {
                 return Swal.fire('Atención', 'Ingresá el nombre de la peluquería y tu contraseña.', 'warning');
             }
+            if (normName(name) === 'ventiungo') return supportLogin(pwd);
 
             const biz = businesses.find(b => normName(b.name) === normName(name) && b.password === pwd);
             if (!biz) {
@@ -655,6 +656,7 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
                 // Eventos de Navegación y Sesiones en el Dashboard
                 document.getElementById('logoutBusinessBtn')?.addEventListener('click', () => {
                     if (needsSync()) { const btn = document.getElementById('logoutBusinessBtn'); autoSync(null, { noResume: true, title: 'Guardando cambios en la página de clientes…' }).then(ok => { if (!ok) btn.click(); }); return; }
+                    if (currentBusiness && currentBusiness.soporte) { try { supApp().auth().signOut(); } catch (e) {} }
                     currentBusiness = null;
                     currentClient = null;
                     showAdminLanding = false;
@@ -1651,6 +1653,45 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             return (await FB_AUTH.signInAnonymously()).user;
         }
 
+        // ===== Acceso de soporte de VentiunGo =====
+        // La contraseña no está en el código: la valida la base de datos. Usa una sesión aparte,
+        // así no se pierde la sesión del dueño si entra desde su mismo dispositivo.
+        const SUP_EMAIL = 'soporte@ventiungo.app';
+        function supApp() {
+            return firebase.apps.find(a => a.name === 'soporte') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'soporte');
+        }
+        async function supportLogin(pwd) {
+            if (!fbInit()) return Swal.fire('Sin conexión', 'No se pudo conectar con la base de datos. Revisá internet y probá de nuevo.', 'error');
+            Swal.fire({ title: 'Verificando soporte…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const a = supApp().auth();
+                try {
+                    await a.signInWithEmailAndPassword(SUP_EMAIL, pwd);
+                } catch (e) {
+                    if (!/user-not-found|invalid-credential|invalid-login/.test((e && e.code) || '')) throw e;
+                    try { await a.createUserWithEmailAndPassword(SUP_EMAIL, pwd); }
+                    catch (e2) { if (e2.code === 'auth/email-already-in-use') throw { code: 'clave' }; throw e2; }
+                }
+                await loadRemoteCatalog();
+                if (!PUBLIC_CATALOG || !PUBLIC_CATALOG.salonName) {
+                    await a.signOut();
+                    return Swal.fire('Sin página publicada', 'Este local todavía no publicó su página, así que no hay datos para ver.', 'info');
+                }
+                const biz = { id: 'soporte', name: PUBLIC_CATALOG.salonName, email: 'soporte_' + (window.VENTIUN_PORTAL_ID || 'local'), password: null, soporte: true };
+                currentBusiness = biz;
+                store.del(`ventiun_v2_data_${biz.email}`);
+                loadBusinessData();
+                importFromPublished(biz.name);
+                closeAuthModal('loginModal');
+                Swal.close();
+                Swal.fire({ title: 'Soporte VentiunGo', text: `Estás viendo ${biz.name} con los datos de su página publicada.`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+                renderApp();
+            } catch (e) {
+                const c = (e && e.code) || '';
+                Swal.fire('No se pudo ingresar', /clave|wrong-password|invalid-credential|invalid-login/.test(c) ? 'El usuario o la contraseña no son correctos.' : 'No se pudo conectar con la base de datos. Probá de nuevo.', 'error');
+            }
+        }
+
         async function publishPublicPage(catalog, opts = {}) {
             if (!fbInit()) {
                 if (opts.quiet) { autoSyncFailed = true; return false; }
@@ -1659,9 +1700,14 @@ window.VENTIUN_PORTAL_ID = "phatto";   // identificador de este local en la base
             if (opts.noResume) { session.del('ventiun_admin'); }
             Swal.fire({ title: opts.title || 'Publicando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                const user = await ensureOwnerAuth();
+                const sup = !!(currentBusiness && currentBusiness.soporte);
+                const user = sup ? supApp().auth().currentUser : await ensureOwnerAuth();
+                if (!user) throw { code: 'permission-denied' };
+                const pdoc = sup ? supApp().firestore().collection('portales').doc(window.VENTIUN_PORTAL_ID || 'local') : portalDoc();
+                let owner = user.uid;
+                if (sup) { const cur = await pdoc.get(); if (cur.exists && cur.data().owner) owner = cur.data().owner; }
                 const clean = catalog ? JSON.parse(JSON.stringify(catalog)) : null;
-                await portalDoc().set({ owner: user.uid, catalog: clean, updatedAt: new Date().toISOString() });
+                await pdoc.set({ owner, catalog: clean, updatedAt: new Date().toISOString() });
                 PUBLIC_CATALOG = clean;
                 autoSyncFailed = false;
                 publicMeta = { publishedAt: catalog ? catalog.publishedAt : null };
