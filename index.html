@@ -634,6 +634,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                     <button id="previewPublicBtn" class="google-btn text-xs px-4 py-2 rounded-full font-bold transition">
                                         👀 Ver página de clientes
                                     </button>
+                                    ${currentBusiness.soporte ? `<button onclick="supportSwitch()" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs px-4 py-2 rounded-full font-bold transition">🔄 Cambiar peluquería</button>` : ''}
                                     ${currentBusiness.soporte ? `<button onclick="supportCode()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs px-4 py-2 rounded-full font-bold transition">🔢 Código para el dueño</button>` : ''}
                                     <button onclick="changePassword()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Contraseña</button>
                                     <button id="logoutBusinessBtn" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs px-4 py-2 rounded-full font-bold transition">
@@ -1870,6 +1871,39 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         function supApp() {
             return firebase.apps.find(a => a.name === 'soporte') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'soporte');
         }
+        // Soporte: elegir peluquería (siempre pregunta si hay más de una)
+        async function supportPick(list) {
+            if (list.length === 1) return list[0];
+            const opts = {}; list.forEach(x => { opts[x.slug] = x.cat.salonName; });
+            const cur = currentBusiness && currentBusiness.soporte ? bizSlug(currentBusiness) : window.VENTIUN_PORTAL_SLUG;
+            const sel = await Swal.fire({
+                title: '¿Qué peluquería querés ver?', input: 'select', inputOptions: opts,
+                inputValue: (list.find(x => x.slug === cur) || list[0]).slug,
+                showCancelButton: true, confirmButtonText: 'Entrar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981'
+            });
+            if (!sel.isConfirmed) return null;
+            return list.find(x => x.slug === sel.value) || list[0];
+        }
+        function supportOpen(pick) {
+            PUBLIC_CATALOG = pick.cat;
+            const biz = { id: 'soporte', name: pick.cat.salonName, portalId: 'p-' + pick.slug, legacyOwner: pick.owner, email: 'soporte_' + pick.slug, password: null, soporte: true };
+            currentBusiness = biz;
+            store.del(`ventiun_v2_data_${biz.email}`);
+            loadBusinessData();
+            importFromPublished(biz.name, pick.cat);
+            Swal.close();
+            Swal.fire({ title: 'Soporte VentiunGo', text: `Estás viendo ${biz.name} con los datos de su página publicada.`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+            renderApp();
+        }
+        async function supportSwitch() {
+            Swal.fire({ title: 'Buscando peluquerías…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const list = await supportPortals();
+                Swal.close();
+                const pick = await supportPick(list);
+                if (pick) supportOpen(pick);
+            } catch (e) { Swal.fire('No se pudo', 'Revisá la conexión y probá de nuevo.', 'error'); }
+        }
         async function supportLogin(pwd) {
             if (!fbInit()) return Swal.fire('Sin conexión', 'No se pudo conectar con la base de datos. Revisá internet y probá de nuevo.', 'error');
             Swal.fire({ title: 'Verificando soporte…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1881,24 +1915,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     await a.signOut();
                     return Swal.fire('Sin páginas publicadas', 'Todavía ninguna peluquería publicó su página.', 'info');
                 }
-                const urlPick = new URLSearchParams(location.search).get('l') ? list.find(x => x.slug === window.VENTIUN_PORTAL_SLUG) : null;
-                let pick = urlPick || (list.length === 1 ? list[0] : null);
-                if (!pick) {
-                    const opts = {}; list.forEach(x => { opts[x.slug] = x.cat.salonName; });
-                    const sel = await Swal.fire({ title: '¿Qué peluquería querés ver?', input: 'select', inputOptions: opts, inputValue: list[0].slug, showCancelButton: true, confirmButtonText: 'Entrar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981' });
-                    if (!sel.isConfirmed) { await a.signOut(); return; }
-                    pick = list.find(x => x.slug === sel.value) || list[0];
-                }
-                PUBLIC_CATALOG = pick.cat;
-                const biz = { id: 'soporte', name: pick.cat.salonName, portalId: 'p-' + pick.slug, legacyOwner: pick.owner, email: 'soporte_' + pick.slug, password: null, soporte: true };
-                currentBusiness = biz;
-                store.del(`ventiun_v2_data_${biz.email}`);
-                loadBusinessData();
-                importFromPublished(biz.name, pick.cat);
+                const pick = await supportPick(list);
+                if (!pick) { await a.signOut(); return; }
                 closeAuthModal('loginModal');
-                Swal.close();
-                Swal.fire({ title: 'Soporte VentiunGo', text: `Estás viendo ${biz.name} con los datos de su página publicada.`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-                renderApp();
+                supportOpen(pick);
             } catch (e) {
                 const c = (e && e.code) || '';
                 Swal.fire('No se pudo ingresar', /clave|wrong-password|invalid-credential|invalid-login/.test(c) ? 'El usuario o la contraseña no son correctos.' : 'No se pudo conectar con la base de datos. Probá de nuevo.', 'error');
