@@ -200,6 +200,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const key = `ventiun_v2_data_${currentBusiness.email}`;
             const payload = { products, transactions, appointments, staff, cashOpen, cashClosures, settings, publicMeta, members };
             store.set(key, JSON.stringify(payload));
+            if (!cloudApplying) { store.set('ventiun_v2_ts_' + currentBusiness.email, String(Date.now())); cloudQueue(); }
         }
 
         function loadBusinessData() {
@@ -443,6 +444,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             if (businesses.some(b => normName(b.name) === normName(name))) {
                 return Swal.fire('Nombre en uso', 'Ya hay un local registrado con ese nombre en este dispositivo. Iniciá sesión o elegí otro nombre.', 'error');
             }
+            if (!window.__regNameOk) {
+                Swal.fire({ title: 'Verificando el nombre…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                nameIsFree(name).then(free => {
+                    Swal.close();
+                    if (!free) return Swal.fire('Ese local ya existe', 'Ya hay una peluquería con ese nombre. Si es tu local, tocá "Iniciar sesión" con tu contraseña (sirve desde cualquier celular). Si no, elegí otro nombre.', 'info');
+                    window.__regNameOk = true; try { handleRegister(); } finally { window.__regNameOk = false; }
+                });
+                return;
+            }
 
             const id = Date.now();
             // "email" queda solo como identificador interno de los datos guardados
@@ -457,6 +467,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             loadBusinessData();
             if (otherPage) { closeAuthModal('registerModal'); goToOwnPage(newBiz); return; }
             importFromPublished(name);
+            cloudConnectSafe(newBiz);
             closeAuthModal('registerModal');
             Swal.fire({
                 title: '¡Negocio Registrado!',
@@ -476,15 +487,14 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             if (normName(name) === 'ventiungo') return supportLogin(pwd);
 
             const biz = businesses.find(b => normName(b.name) === normName(name) && b.password === pwd);
-            if (!biz) {
-                return Swal.fire('No se pudo ingresar', 'El nombre o la contraseña no son correctos.', 'error');
-            }
+            if (!biz) return cloudLogin(name, pwd);
 
             currentBusiness = biz;
             session.set('ventiun_admin', biz.email);
             store.set('ventiun_last_biz', biz.email);
             if (goToOwnPage(biz)) return;
             loadBusinessData();
+            cloudConnectSafe(biz);
             closeAuthModal('loginModal');
             Swal.fire({
                 title: 'Sesión Iniciada',
@@ -635,7 +645,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                         👀 Ver página de clientes
                                     </button>
                                     ${currentBusiness.soporte ? `<button onclick="supportSwitch()" class="bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs px-4 py-2 rounded-full font-bold transition">🔄 Cambiar peluquería</button>` : ''}
-                                    ${currentBusiness.soporte ? `<button onclick="supportCode()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs px-4 py-2 rounded-full font-bold transition">🔢 Código para el dueño</button>` : ''}
+                                    ${currentBusiness.soporte ? `<button onclick="supportNewOwnerPass()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Nueva clave al dueño</button>` : ''}
                                     <button onclick="changePassword()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-4 py-2 rounded-full font-bold transition">🔑 Contraseña</button>
                                     <button id="logoutBusinessBtn" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs px-4 py-2 rounded-full font-bold transition">
                                         🚪 Cerrar Sistema
@@ -683,6 +693,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 document.getElementById('logoutBusinessBtn')?.addEventListener('click', () => {
                     if (needsSync()) { const btn = document.getElementById('logoutBusinessBtn'); autoSync(null, { noResume: true, title: 'Guardando cambios en la página de clientes…' }).then(ok => { if (!ok) btn.click(); }); return; }
                     if (currentBusiness && currentBusiness.soporte) { try { supApp().auth().signOut(); } catch (e) {} setTimeout(() => location.reload(), 300); }
+                    cloudStop();
                     currentBusiness = null;
                     currentClient = null;
                     showAdminLanding = false;
@@ -699,6 +710,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 const panelDiv = document.getElementById('dynamicPanel');
 
                 function switchTab(tabId) {
+                    window.__curTab = tabId;
                     if (needsSync()) { autoSync(tabId).then(ok => { if (!ok) switchTab(tabId); }); return; }
                     tabs.forEach(btn => {
                         btn.classList.remove('tab-active', 'text-emerald-500');
@@ -1749,12 +1761,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const salon = (PUBLIC_CATALOG && PUBLIC_CATALOG.salonName) || typed.trim() || 'mi peluquería';
             const r = await Swal.fire({
                 title: '¿Olvidaste tu contraseña?',
-                html: 'Escribile a <b>VentiunGo</b> por WhatsApp y te pasamos un <b>código</b> para crear una contraseña nueva en este celular.',
-                icon: 'question', showDenyButton: true, showCancelButton: true,
+                html: 'Escribile a <b>VentiunGo</b> por WhatsApp y te damos una <b>contraseña nueva</b>. Vas a poder entrar desde cualquier celular.',
+                icon: 'question', showDenyButton: false, showCancelButton: true,
                 confirmButtonText: '💬 Escribir por WhatsApp', denyButtonText: '🔢 Ya tengo el código', cancelButtonText: 'Cerrar',
                 confirmButtonColor: '#10b981', denyButtonColor: '#0f172a'
             });
-            if (r.isConfirmed) return waSupport(`Hola VentiunGo, olvidé la contraseña del panel de ${salon} (app Peluquerías). ¿Me pasan un código para cambiarla?`);
+            if (r.isConfirmed) return waSupport(`Hola VentiunGo, olvidé la contraseña del panel de ${salon} (app Peluquerías). ¿Me dan una nueva?`);
             if (r.isDenied) return resetWithCode();
         }
         async function resetWithCode() {
@@ -1844,6 +1856,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             }
             const biz = businesses.find(b => b.email === currentBusiness.email);
             if (!biz || biz.password !== old) return Swal.fire('No se pudo cambiar', 'La contraseña actual no es correcta.', 'error');
+            try {
+                const cu = FB_AUTH && FB_AUTH.currentUser;
+                if (cu && !cu.isAnonymous) {
+                    await cu.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(cu.email, old));
+                    await cu.updatePassword(p1);
+                }
+            } catch (e) {
+                return Swal.fire('No se pudo cambiar', 'No se pudo guardar la contraseña nueva en la nube. Revisá la conexión y probá de nuevo.', 'error');
+            }
             biz.password = p1; currentBusiness.password = p1;
             saveBusinesses();
             Swal.fire({ title: 'Contraseña cambiada', text: 'La próxima vez entrá con la contraseña nueva.', icon: 'success', confirmButtonColor: '#10b981' });
@@ -1871,6 +1892,176 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         function supApp() {
             return firebase.apps.find(a => a.name === 'soporte') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'soporte');
         }
+        // ===== Cuenta del local en la nube: el dueño entra desde cualquier celular =====
+        const CLOUD_DOMAIN = '@peluquerias.ventiungo.app';
+        const DEVICE_ID = (() => { let d = store.get('ventiun_device'); if (!d) { d = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('ventiun_device', d); } return d; })();
+        let cloudApplying = false, cloudReady = '', cloudUnsub = null, cloudTimer = null, cloudLastJson = '', cloudPending = false;
+        async function ownerEmailFor(slug) {
+            try { const sn = await FB_DB.collection('portales').doc('p-' + slug).get(); if (sn.exists && sn.data().ownerEmail) return sn.data().ownerEmail; } catch (e) {}
+            return slug + CLOUD_DOMAIN;
+        }
+        function privRef(slug) { return FB_DB.collection('portales').doc('p-' + slug).collection('privado').doc('datos'); }
+        function cloudPayloadJson() { return JSON.stringify({ products, transactions, appointments, staff, cashOpen, cashClosures, settings, publicMeta, members }); }
+        function localIsEmpty() { return !products.length && !appointments.length && !transactions.length && !members.length && !staff.length; }
+        async function nameIsFree(name) {
+            if (!fbInit()) return true;
+            try { const r = await fetchPortal(slugOf(name)); return !r; } catch (e) { return true; }
+        }
+        function cloudApply(d) {
+            let p = null; try { p = JSON.parse(d.json); } catch (e) { return; }
+            cloudApplying = true;
+            try {
+                products = p.products || []; transactions = p.transactions || []; appointments = p.appointments || []; staff = p.staff || [];
+                cashOpen = !!p.cashOpen; cashClosures = p.cashClosures || []; settings = { ...DEFAULT_SETTINGS, ...(p.settings || {}) };
+                publicMeta = p.publicMeta || { publishedAt: null }; members = p.members || [];
+                saveBusinessData();
+            } finally { cloudApplying = false; }
+            store.set('ventiun_v2_ts_' + currentBusiness.email, String(d.ts || Date.now()));
+            cloudLastJson = cloudPayloadJson();
+        }
+        function cloudRefreshView() {
+            const a = document.activeElement;
+            if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && document.getElementById('dynamicPanel')) {
+                a.addEventListener('blur', () => setTimeout(cloudRefreshView, 50), { once: true }); return;
+            }
+            if (currentBusiness && !publicPreview && document.getElementById('dynamicPanel')) renderApp(window.__curTab || 'pos');
+        }
+        function cloudQueue() {
+            if (!currentBusiness || currentBusiness.soporte || cloudReady !== bizSlug(currentBusiness)) return;
+            clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudPush, 1200);
+        }
+        async function cloudPush() {
+            if (!currentBusiness || cloudReady !== bizSlug(currentBusiness)) return;
+            const json = cloudPayloadJson();
+            if (json === cloudLastJson) return;
+            const ts = Number(store.get('ventiun_v2_ts_' + currentBusiness.email) || Date.now());
+            try {
+                await privRef(bizSlug(currentBusiness)).set({ json, ts, by: DEVICE_ID });
+                cloudLastJson = json; cloudPending = false;
+            } catch (e) { cloudPending = true; console.warn('No se pudo guardar en la nube', e); }
+        }
+        function cloudStop() { if (cloudUnsub) { try { cloudUnsub(); } catch (e) {} } cloudUnsub = null; cloudReady = ''; clearTimeout(cloudTimer); }
+        // Conecta el local con su cuenta en la nube (la crea la primera vez) y sincroniza los datos
+        async function cloudConnect(biz, pwd) {
+            if (!biz || biz.soporte || !pwd || !fbInit()) return false;
+            const slug = bizSlug(biz);
+            const email = await ownerEmailFor(slug);
+            let u = FB_AUTH.currentUser;
+            if (!u) {
+                await new Promise(res => { let done = false; const un = FB_AUTH.onAuthStateChanged(() => { if (done) return; done = true; setTimeout(() => { if (typeof un === 'function') un(); }, 0); res(); }); });
+                u = FB_AUTH.currentUser;
+            }
+            if (u && !u.isAnonymous && u.email === email) {
+                // ya conectado
+            } else if (u && u.isAnonymous) {
+                try { await u.linkWithCredential(firebase.auth.EmailAuthProvider.credential(email, pwd)); }
+                catch (e) {
+                    if (!/already-in-use|credential-already|provider-already/.test((e && e.code) || '')) throw e;
+                    await FB_AUTH.signInWithEmailAndPassword(email, pwd);
+                }
+            } else {
+                try { await FB_AUTH.signInWithEmailAndPassword(email, pwd); }
+                catch (e) {
+                    if (!/user-not-found|invalid-credential|invalid-login/.test((e && e.code) || '')) throw e;
+                    try { await FB_AUTH.createUserWithEmailAndPassword(email, pwd); }
+                    catch (e2) { throw /already-in-use/.test((e2 && e2.code) || '') ? { code: 'clave' } : e2; }
+                }
+            }
+            const uid = FB_AUTH.currentUser.uid;
+            const pref = FB_DB.collection('portales').doc('p-' + slug);
+            const ps = await pref.get();
+            if (!ps.exists) {
+                let cat = null; try { const r = await fetchPortal(slug); cat = (r && r.data.catalog) || null; } catch (e) {}
+                await pref.set({ owner: uid, ownerEmail: email, catalog: cat, updatedAt: new Date().toISOString() });
+            } else if (ps.data().owner !== uid) {
+                if (ps.data().owner) throw { code: 'not-owner' };
+                await pref.set({ owner: uid, ownerEmail: email }, { merge: true });
+            } else if (!ps.data().ownerEmail) {
+                await pref.set({ ownerEmail: email }, { merge: true });
+            }
+            // Datos del panel: gana la versión más nueva
+            const ds = await privRef(slug).get();
+            const localTs = Number(store.get('ventiun_v2_ts_' + biz.email) || 0);
+            if (currentBusiness !== biz) return true;
+            cloudReady = slug;
+            if (ds.exists && (localIsEmpty() || (ds.data().ts || 0) > localTs)) { cloudApply(ds.data()); cloudRefreshView(); }
+            else { cloudLastJson = ''; if (!store.get('ventiun_v2_ts_' + biz.email)) store.set('ventiun_v2_ts_' + biz.email, String(Date.now())); await cloudPush(); }
+            if (cloudUnsub) cloudUnsub();
+            cloudUnsub = privRef(slug).onSnapshot(sn => {
+                if (!sn.exists || !currentBusiness || bizSlug(currentBusiness) !== slug) return;
+                const d = sn.data();
+                const mine = Number(store.get('ventiun_v2_ts_' + currentBusiness.email) || 0);
+                if (d.by !== DEVICE_ID && (d.ts || 0) > mine) { cloudApply(d); cloudRefreshView(); }
+            }, () => {});
+            return true;
+        }
+        function cloudConnectSafe(biz) {
+            cloudConnect(biz, biz && biz.password).catch(e => {
+                console.warn('Nube', e);
+                if (e && e.code === 'not-owner') Swal.fire({ title: 'Este local está conectado a otra cuenta', text: 'Los cambios quedan solo en este celular. Pedile a VentiunGo una contraseña nueva para entrar desde cualquier celular.', icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 6000 });
+            });
+        }
+        // Entrar desde otro celular: busca el local en la nube
+        async function cloudLogin(name, pwd) {
+            if (!fbInit()) return Swal.fire('No se pudo ingresar', 'El nombre o la contraseña no son correctos.', 'error');
+            Swal.fire({ title: 'Buscando tu local…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const slug = slugOf(name);
+            try {
+                const email = await ownerEmailFor(slug);
+                await FB_AUTH.signInWithEmailAndPassword(email, pwd);
+                const ps = await FB_DB.collection('portales').doc('p-' + slug).get();
+                if (!ps.exists || ps.data().owner !== FB_AUTH.currentUser.uid) throw { code: 'not-owner' };
+                const cat = ps.data().catalog || null;
+                const salonName = (cat && cat.salonName) || name.trim().replace(/\s+/g, ' ');
+                let biz = businesses.find(b => bizSlug(b) === slug);
+                if (biz) biz.password = pwd;
+                else { const id = Date.now(); biz = { id, name: salonName, email: 'local_' + id, password: pwd, portalId: 'p-' + slug }; businesses.push(biz); }
+                saveBusinesses();
+                currentBusiness = biz;
+                session.set('ventiun_admin', biz.email);
+                store.set('ventiun_last_biz', biz.email);
+                loadBusinessData();
+                await cloudConnect(biz, pwd);
+                if (localIsEmpty() && cat) importFromPublished(salonName, cat);
+                Swal.close();
+                closeAuthModal('loginModal');
+                if (goToOwnPage(biz)) return;
+                Swal.fire({ title: 'Sesión Iniciada', text: `Bienvenido a ${biz.name}`, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                renderApp();
+            } catch (e) {
+                currentBusiness = null; session.del('ventiun_admin');
+                Swal.fire('No se pudo ingresar', 'El nombre o la contraseña no son correctos. Si es la primera vez que entrás desde este celular, entrá antes una vez desde el celular donde creaste el local, o pedile ayuda a VentiunGo.', 'error');
+            }
+        }
+        // Soporte: crea una contraseña nueva para el dueño (sirve desde cualquier celular)
+        async function supportNewOwnerPass() {
+            const r = await Swal.fire({
+                title: 'Nueva clave para el dueño',
+                html: `<p style="font-size:14px;margin-bottom:6px">El dueño de <b>${esc(currentBusiness.name)}</b> va a entrar con el nombre del local y esta contraseña, desde cualquier celular.</p>` + passFields(false),
+                showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981', focusConfirm: false,
+                preConfirm: () => readPassFields(false)
+            });
+            if (!r.isConfirmed || !r.value) return;
+            Swal.fire({ title: 'Guardando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const slug = bizSlug(currentBusiness);
+                const sec = firebase.apps.find(a => a.name === 'pelsec') || firebase.initializeApp(window.VENTIUN_FIREBASE, 'pelsec');
+                const sa = sec.auth();
+                try { await sa.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch (e) {}
+                const email = slug + '.rst' + Date.now().toString(36) + CLOUD_DOMAIN;
+                const cred = await sa.createUserWithEmailAndPassword(email, r.value.p1);
+                await sa.signOut();
+                const pdoc = supApp().firestore().collection('portales').doc('p-' + slug);
+                const cur = await pdoc.get();
+                const data = { owner: cred.user.uid, ownerEmail: email };
+                if (!cur.exists || !cur.data().catalog) data.catalog = PUBLIC_CATALOG || null;
+                await pdoc.set(data, { merge: true });
+                Swal.fire({ title: 'Listo', html: `El dueño ya puede entrar desde cualquier celular:<br><b>${esc(currentBusiness.name)}</b> y la contraseña nueva.<br><span style="font-size:13px;color:#64748b">Su enlace: ${esc(pageLinkFor(slug))}</span>`, icon: 'success', confirmButtonColor: '#10b981' });
+            } catch (e) {
+                Swal.fire('No se pudo guardar', /permission/.test((e && e.code) || '') ? 'Falta el permiso de soporte en la base de datos.' : 'Revisá la conexión y probá de nuevo.', 'error');
+            }
+        }
+
         // Soporte: elegir peluquería (siempre pregunta si hay más de una)
         async function supportPick(list) {
             if (list.length === 1) return list[0];
@@ -3339,6 +3530,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 if (biz) {
                     currentBusiness = biz; loadBusinessData();
                     if (biz.needsImport) { delete biz.needsImport; saveBusinesses(); importFromPublished(biz.name); }
+                    cloudConnectSafe(biz);
                 }
                 renderApp();
                 return captureBookingHash();
