@@ -200,7 +200,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const key = `ventiun_v2_data_${currentBusiness.email}`;
             const payload = { products, transactions, appointments, staff, cashOpen, cashClosures, settings, publicMeta, members };
             store.set(key, JSON.stringify(payload));
-            if (!cloudApplying) { store.set('ventiun_v2_ts_' + currentBusiness.email, String(Date.now())); cloudQueue(); }
+            if (!cloudApplying) { store.set('ventiun_v2_ts_' + currentBusiness.email, String(Date.now() - (store.get('ventiun_v2_seed_' + currentBusiness.email) ? SEED_AGE : 0))); cloudQueue(); }
         }
 
         function loadBusinessData() {
@@ -1704,6 +1704,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         }
         // Sesión del dueño en la base de datos: queda guardada en este navegador
         async function ensureOwnerAuth() {
+            // Primero la cuenta del local (así la página se publica a su nombre); solo si no hay, sesión anónima
+            if (currentBusiness && !currentBusiness.soporte && currentBusiness.password) { try { await cloudConnect(currentBusiness, currentBusiness.password); } catch (e) {} }
             if (FB_AUTH.currentUser) return FB_AUTH.currentUser;
             await new Promise(res => { let done = false; const u = FB_AUTH.onAuthStateChanged(() => { if (done) return; done = true; setTimeout(() => { if (typeof u === 'function') u(); }, 0); res(); }); });
             if (FB_AUTH.currentUser) return FB_AUTH.currentUser;
@@ -1898,6 +1900,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         const CLOUD_DOMAIN = '@peluquerias.ventiungo.app';
         const DEVICE_ID = (() => { let d = store.get('ventiun_device'); if (!d) { d = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('ventiun_device', d); } return d; })();
         let cloudApplying = false, cloudReady = '', cloudUnsub = null, cloudTimer = null, cloudLastJson = '', cloudPending = false;
+        // Un celular nuevo que solo tiene los servicios publicados no debe pisar los datos del celular original
+        const SEED_AGE = 5 * 365 * 24 * 3600 * 1000;
         async function ownerEmailFor(slug) {
             try { const sn = await FB_DB.collection('portales').doc('p-' + slug).get(); if (sn.exists && sn.data().ownerEmail) return sn.data().ownerEmail; } catch (e) {}
             return slug + CLOUD_DOMAIN;
@@ -1919,6 +1923,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 saveBusinessData();
             } finally { cloudApplying = false; }
             store.set('ventiun_v2_ts_' + currentBusiness.email, String(d.ts || Date.now()));
+            if ((d.ts || 0) > Date.now() - SEED_AGE / 2) store.del('ventiun_v2_seed_' + currentBusiness.email);   // llegaron datos reales
             cloudLastJson = cloudPayloadJson();
         }
         function cloudRefreshView() {
@@ -1944,7 +1949,18 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         }
         function cloudStop() { if (cloudUnsub) { try { cloudUnsub(); } catch (e) {} } cloudUnsub = null; cloudReady = ''; clearTimeout(cloudTimer); }
         // Conecta el local con su cuenta en la nube (la crea la primera vez) y sincroniza los datos
-        async function cloudConnect(biz, pwd) {
+        // Una sola conexión a la vez por local (evita sesiones cruzadas)
+        let cloudCP = null, cloudCK = '';
+        function cloudConnect(biz, pwd) {
+            const k = bizSlug(biz) + '|' + (biz && biz.email);
+            if (cloudCP && cloudCK === k) return cloudCP;
+            cloudCK = k;
+            const pr = cloudConnectInner(biz, pwd);
+            cloudCP = pr;
+            pr.then(() => { if (cloudCP === pr) cloudCP = null; }, () => { if (cloudCP === pr) cloudCP = null; });
+            return pr;
+        }
+        async function cloudConnectInner(biz, pwd) {
             if (!biz || biz.soporte || !pwd || !fbInit()) return false;
             const slug = bizSlug(biz);
             const email = await ownerEmailFor(slug);
@@ -1976,7 +1992,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 let cat = null; try { const r = await fetchPortal(slug); cat = (r && r.data.catalog) || null; } catch (e) {}
                 await pref.set({ owner: uid, ownerEmail: email, catalog: cat, updatedAt: new Date().toISOString() });
             } else if (ps.data().owner !== uid) {
-                if (ps.data().owner) throw { code: 'not-owner' };
+                // La página quedó a nombre de otra cuenta sin email de dueño: la cuenta propia del local la recupera
+                if (ps.data().owner && (ps.data().ownerEmail || FB_AUTH.currentUser.email !== slug + CLOUD_DOMAIN)) throw { code: 'not-owner' };
                 await pref.set({ owner: uid, ownerEmail: email }, { merge: true });
             } else if (!ps.data().ownerEmail) {
                 await pref.set({ ownerEmail: email }, { merge: true });
@@ -1987,7 +2004,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             if (currentBusiness !== biz) return true;
             cloudReady = slug;
             if (ds.exists && (localIsEmpty() || (ds.data().ts || 0) > localTs)) { cloudApply(ds.data()); cloudRefreshView(); }
-            else { cloudLastJson = ''; if (!store.get('ventiun_v2_ts_' + biz.email)) store.set('ventiun_v2_ts_' + biz.email, String(Date.now())); await cloudPush(); }
+            else if (!localIsEmpty()) { cloudLastJson = ''; if (!store.get('ventiun_v2_ts_' + biz.email)) store.set('ventiun_v2_ts_' + biz.email, String(Date.now())); await cloudPush(); }
+            else { cloudLastJson = cloudPayloadJson(); }   // nada que subir: no pisar datos de otro celular
             if (cloudUnsub) cloudUnsub();
             cloudUnsub = privRef(slug).onSnapshot(sn => {
                 if (!sn.exists || !currentBusiness || bizSlug(currentBusiness) !== slug) return;
@@ -2011,7 +2029,11 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             try {
                 const email = await ownerEmailFor(slug);
                 await FB_AUTH.signInWithEmailAndPassword(email, pwd);
-                const ps = await FB_DB.collection('portales').doc('p-' + slug).get();
+                const pref = FB_DB.collection('portales').doc('p-' + slug);
+                let ps = await pref.get();
+                if (ps.exists && ps.data().owner !== FB_AUTH.currentUser.uid && !ps.data().ownerEmail && FB_AUTH.currentUser.email === slug + CLOUD_DOMAIN) {
+                    try { await pref.set({ owner: FB_AUTH.currentUser.uid, ownerEmail: email }, { merge: true }); ps = await pref.get(); } catch (e) {}
+                }
                 if (!ps.exists || ps.data().owner !== FB_AUTH.currentUser.uid) throw { code: 'not-owner' };
                 const cat = ps.data().catalog || null;
                 const salonName = (cat && cat.salonName) || name.trim().replace(/\s+/g, ' ');
@@ -2024,7 +2046,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 store.set('ventiun_last_biz', biz.email);
                 loadBusinessData();
                 await cloudConnect(biz, pwd);
-                if (localIsEmpty() && cat) importFromPublished(salonName, cat);
+                // Si todavía no hay datos en la nube, se muestran los servicios publicados sin pisar lo que tenga el celular original
+                if (localIsEmpty() && cat) { store.set('ventiun_v2_seed_' + biz.email, '1'); cloudApplying = true; try { importFromPublished(salonName, cat); } finally { cloudApplying = false; } }
                 Swal.close();
                 closeAuthModal('loginModal');
                 if (goToOwnPage(biz)) return;
@@ -2176,9 +2199,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 const pid = bizPortalId(currentBusiness);
                 const pdoc = sup ? supApp().firestore().collection('portales').doc(pid) : portalDoc(pid);
                 let owner = user.uid;
-                if (sup) { const cur = await pdoc.get(); owner = (cur.exists && cur.data().owner) || currentBusiness.legacyOwner || null; }
+                const prevSn = await pdoc.get(); const prevData = prevSn.exists ? prevSn.data() : {};
+                if (sup) owner = prevData.owner || currentBusiness.legacyOwner || null;
                 const clean = catalog ? JSON.parse(JSON.stringify(catalog)) : null;
-                await pdoc.set({ owner, catalog: clean, updatedAt: new Date().toISOString() });
+                const docData = { owner, catalog: clean, updatedAt: new Date().toISOString() };
+                if (prevData.ownerEmail) docData.ownerEmail = prevData.ownerEmail;   // no perder con qué cuenta entra el dueño
+                await pdoc.set(docData);
                 PUBLIC_CATALOG = clean;
                 autoSyncFailed = false;
                 publicMeta = { publishedAt: catalog ? catalog.publishedAt : null };
