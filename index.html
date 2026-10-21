@@ -2409,10 +2409,22 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     </div>
                     <span class="font-extrabold text-slate-900 tabular-nums text-base">${fmt(s.price)}</span>
                 </li>`).join('');
-            const productRows = cat.products.map(p => `
-                <li class="flex items-baseline gap-3 py-3">
-                    <p class="min-w-0 flex-1 text-sm text-slate-700">${esc(p.name)} ${p.inStock ? '' : '<span class="ml-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Sin stock</span>'}</p>
-                    <span class="font-bold text-slate-800 tabular-nums">${fmt(p.price)}</span>
+            // Tienda: el socio suma productos a su pedido de turno (índice del catálogo → cantidad)
+            const cart = {};
+            const SHOP_MAX = 20;
+            const hasShop = cat.products.some(p => p.inStock);
+            const productRows = cat.products.map((p, i) => `
+                <li class="flex items-center gap-3 py-3">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm text-slate-700">${esc(p.name)}</p>
+                        <p class="text-sm font-bold text-slate-800 tabular-nums">${fmt(p.price)}</p>
+                    </div>
+                    ${p.inStock ? `
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button type="button" data-shop="${i}" data-d="-1" class="shopBtn w-9 h-9 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold" aria-label="Quitar uno de ${esc(p.name)}">−</button>
+                        <span data-shopqty="${i}" class="w-6 text-center text-sm font-bold tabular-nums text-slate-400">0</span>
+                        <button type="button" data-shop="${i}" data-d="1" class="shopBtn w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold" aria-label="Agregar uno de ${esc(p.name)}">+</button>
+                    </div>` : '<span class="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0">Sin stock</span>'}
                 </li>`).join('');
 
             root.innerHTML = `
@@ -2465,8 +2477,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         </section>
 
                         ${cat.products.length ? `
-                        <section>
-                            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">Productos a la venta</h2>
+                        <section id="tienda" class="scroll-mt-16">
+                            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400 mb-1"><i class="fas fa-bag-shopping mr-1"></i>Tienda</h2>
+                            ${hasShop ? '<p class="text-xs text-slate-500 mb-2">Sumá productos a tu pedido de turno: te los separamos y los pagás cuando venís.</p>' : ''}
                             <ul class="bg-white rounded-2xl border border-slate-200/70 px-5 divide-y divide-slate-100">${productRows}</ul>
                         </section>` : ''}
 
@@ -2527,6 +2540,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                         <input id="pubComment" type="text" maxlength="140" placeholder="Ej: tengo el pelo largo" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
                                     </div>
                                 </div>
+
+                                ${hasShop ? `
+                                <div class="mt-5 rounded-xl border border-slate-200/70 p-4">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-xs font-bold text-slate-500"><i class="fas fa-bag-shopping mr-1"></i>PRODUCTOS (OPCIONAL)</span>
+                                        <a href="#tienda" class="text-xs font-bold text-emerald-600 hover:underline">Agregar de la tienda</a>
+                                    </div>
+                                    <div id="pubCart" class="mt-2 text-sm text-slate-500">Todavía no sumaste productos.</div>
+                                </div>` : ''}
 
                                 <div class="mt-5 rounded-xl bg-slate-50 border border-slate-200/70 p-4">
                                     <div class="flex items-center justify-between gap-2 mb-2">
@@ -2621,16 +2643,45 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     `• Día: ${when ? `${fmtLongDate(when)} a las ${time} h` : '—'}`,
                     `• Socio: N° ${member ? member.no : '—'} – ${name || '—'}`
                 ];
+                const items = cartItems();
+                if (items.length) {
+                    lines.push('• Productos:');
+                    items.forEach(x => lines.push(`   – ${x.qty} × ${x.name} (${fmt(x.price * x.qty)})`));
+                    const prodTotal = items.reduce((s, x) => s + x.price * x.qty, 0);
+                    lines.push(`• Total estimado: ${fmt((svc ? svc.price : 0) + prodTotal)}`);
+                }
                 if (comment) lines.push(`• Comentario: ${comment}`);
                 let token = '';
                 if (svc && when && member) {
                     const p2 = n => String(n).padStart(2, '0');
                     const stamp = `${when.getFullYear()}${p2(when.getMonth() + 1)}${p2(when.getDate())}${p2(when.getHours())}${p2(when.getMinutes())}`;
                     token = `turno-${cat.services.indexOf(svc)}-${stylist ? stylist.id : 0}-${stamp}-${member.no}`;
+                    if (items.length) token += '-p' + items.map(x => `${x.i}.${x.qty}`).join('_');
                 }
                 lines.push('', '¿Me lo confirmás? Gracias.');
                 if (token) lines.push('', `Para agendarlo: ${(cat.pageLink || DEFAULT_PAGE_LINK)}#${token}`);
-                return { svc, stylist, when, name, missing, token, text: lines.join('\n') };
+                return { svc, stylist, when, name, missing, token, items, text: lines.join('\n') };
+            }
+
+            function cartItems() {
+                return Object.keys(cart).map(Number).filter(i => cart[i] > 0 && cat.products[i])
+                    .map(i => ({ i, name: cat.products[i].name, price: cat.products[i].price, qty: cart[i] }));
+            }
+            function renderCart() {
+                document.querySelectorAll('[data-shopqty]').forEach(el => {
+                    const q = cart[el.dataset.shopqty] || 0;
+                    el.textContent = q;
+                    el.classList.toggle('text-slate-400', !q);
+                    el.classList.toggle('text-emerald-600', !!q);
+                });
+                const box = $('pubCart');
+                if (!box) return;
+                const items = cartItems();
+                if (!items.length) { box.innerHTML = 'Todavía no sumaste productos.'; box.className = 'mt-2 text-sm text-slate-500'; return; }
+                const total = items.reduce((s, x) => s + x.price * x.qty, 0);
+                box.className = 'mt-2 text-sm text-slate-700';
+                box.innerHTML = '<ul class="space-y-1">' + items.map(x => `<li class="flex justify-between gap-3"><span>${x.qty} × ${esc(x.name)}</span><span class="tabular-nums font-semibold">${fmt(x.price * x.qty)}</span></li>`).join('') + '</ul>'
+                    + `<div class="mt-2 pt-2 border-t border-slate-100 flex justify-between gap-3 font-bold"><span>Subtotal productos</span><span class="tabular-nums">${fmt(total)}</span></div>`;
             }
 
             function refreshMessage() {
@@ -2655,6 +2706,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         <div class="min-w-0 flex-1">
                             <p class="font-semibold text-slate-800 text-sm">${esc(r.service)}</p>
                             <p class="text-xs text-slate-500 mt-0.5">${fmtLongDate(new Date(r.dateTime))} · ${fmtTime(new Date(r.dateTime))} h${r.stylist ? ' · ' + esc(r.stylist) : ''}</p>
+                            ${r.items ? `<p class="text-xs text-slate-500 mt-0.5"><i class="fas fa-bag-shopping mr-1"></i>${esc(r.items)}</p>` : ''}
                             <p class="text-[11px] text-amber-600 mt-1">Pedido enviado. El turno queda firme cuando el local te lo confirma por WhatsApp.</p>
                         </div>
                         <button data-req="${esc(r.id)}" class="reqDel text-slate-400 hover:text-rose-500 p-2" aria-label="Quitar de la lista"><i class="fas fa-xmark"></i></button>
@@ -2676,6 +2728,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 });
             }
             $('pubComment').addEventListener('input', refreshMessage);
+            document.querySelectorAll('.shopBtn').forEach(b => b.addEventListener('click', () => {
+                const i = b.dataset.shop;
+                cart[i] = Math.max(0, Math.min(SHOP_MAX, (cart[i] || 0) + parseInt(b.dataset.d)));
+                if (!cart[i]) delete cart[i];
+                renderCart(); refreshMessage();
+                if (b.dataset.d === '1' && !member && !b.closest('#pedir')) {
+                    Swal.fire({ title: 'Agregado al pedido', text: 'Ingresá con tu código de socio abajo para pedirlo junto con tu turno.', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2200 });
+                }
+            }));
 
             function showMember(m) {
                 member = m;
@@ -2739,9 +2800,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 }
                 if (!preview) {
                     const list = loadRequests();
-                    list.push({ id: 'r' + Date.now(), service: c.svc.name, stylist: c.stylist ? c.stylist.name : '', stylistId: c.stylist ? c.stylist.id : null, dateTime: c.when.toISOString() });
+                    list.push({ id: 'r' + Date.now(), service: c.svc.name, stylist: c.stylist ? c.stylist.name : '', stylistId: c.stylist ? c.stylist.id : null, dateTime: c.when.toISOString(), items: c.items.map(x => `${x.qty} × ${x.name}`).join(', ') });
                     store.set(reqKey, JSON.stringify(list.slice(-10)));
-                    setTimeout(() => { renderRequests(); refreshTimes(); refreshMessage(); }, 300);
+                    setTimeout(() => { Object.keys(cart).forEach(k => delete cart[k]); renderCart(); renderRequests(); refreshTimes(); refreshMessage(); }, 300);
                 }
             });
 
@@ -3127,9 +3188,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const who = a.clientName.split(' ')[0];
             const prof = staff.find(x => x.id === a.stylistId);
             const addr = settings.address ? ` en ${settings.address}` : '';
-            if (kind === 'confirm') return `¡Hola ${who}! Tu turno en ${salon} quedó confirmado:\n• ${a.service}\n• ${apptWhen(a)}${prof ? `\n• Te atiende ${prof.name}` : ''}\nTe esperamos${addr}. Si no podés venir, avisanos por acá.`;
+            if (kind === 'confirm') return `¡Hola ${who}! Tu turno en ${salon} quedó confirmado:\n• ${a.service}\n• ${apptWhen(a)}${prof ? `\n• Te atiende ${prof.name}` : ''}${a.items && a.items.length ? `\n• Te separamos: ${itemsText(a.items)}` : ''}\nTe esperamos${addr}. Si no podés venir, avisanos por acá.`;
             if (kind === 'remind') return `¡Hola ${who}! Te recordamos tu turno en ${salon}: ${apptWhen(a)} (${a.service}).\nTe esperamos${addr}. Si no podés venir, avisanos por acá así liberamos el horario.`;
             return `¡Hola ${who}! Te avisamos que tu turno en ${salon} del ${apptWhen(a)} (${a.service}) quedó cancelado. Si querés, te ofrecemos otro horario.`;
+        }
+        function itemsText(items) {
+            return (items || []).map(x => `${x.qty} × ${x.name}`).join(', ');
         }
         function waLink(phone, text) {
             return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -3166,7 +3230,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         function captureBookingHash() {
             let h = '';
             try { h = decodeURIComponent((location.hash || '').slice(1)); } catch (e) { h = ''; }
-            const m = h.match(/^turno-\d+-\d+-\d{12}-\d+$/);
+            const m = h.match(/^turno-\d+-\d+-\d{12}-\d+(?:-p\d+\.\d+(?:_\d+\.\d+)*)?$/);
             if (!m) return;
             try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
             if (currentBusiness) return processBookingToken(m[0]);
@@ -3191,9 +3255,18 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 try { await Promise.race([cloudConnect(currentBusiness, currentBusiness.password), new Promise(r => setTimeout(r, 8000))]); } catch (e) {}
                 Swal.close();
             }
-            const m = token.match(/^turno-(\d+)-(\d+)-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})-(\d+)$/);
+            const m = token.match(/^turno-(\d+)-(\d+)-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})-(\d+)(?:-p(\d+\.\d+(?:_\d+\.\d+)*))?$/);
             if (!m) return Swal.fire('Pedido no válido', 'El link del pedido está incompleto.', 'error');
-            const [, si, pi, Y, Mo, D, H, Mi, no] = m;
+            const [, si, pi, Y, Mo, D, H, Mi, no, plist] = m;
+            // Productos de la tienda que pidió el socio (índice del catálogo publicado . cantidad)
+            const items = [];
+            (plist || '').split('_').filter(Boolean).forEach(x => {
+                const [ix, q] = x.split('.').map(Number);
+                const pp = PUBLIC_CATALOG && (PUBLIC_CATALOG.products || [])[ix];
+                if (!pp || !q) return;
+                const lp = products.find(p => p.type === 'product' && p.name === pp.name);
+                items.push({ name: pp.name, price: lp ? lp.price : pp.price, qty: Math.min(q, 99), stock: lp ? lp.stock : 0 });
+            });
             if (appointments.some(a => a.token === token)) {
                 return Swal.fire({ title: 'Ya está en la agenda', text: 'Ese pedido ya se agendó antes.', icon: 'info', confirmButtonColor: '#10b981' });
             }
@@ -3215,6 +3288,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     <div class="flex justify-between gap-3"><span>Servicio</span><strong class="text-slate-800">${esc(svc.name)} · ${fmt(svc.price)}</strong></div>
                     <div class="flex justify-between gap-3"><span>Día y hora</span><strong class="text-slate-800">${esc(when)}</strong></div>
                     <div class="flex justify-between gap-3"><span>Profesional</span><strong class="text-slate-800">${stylist ? esc(stylist.name) : 'Sin preferencia'}</strong></div>
+                    ${items.length ? `
+                    <div class="pt-2 mt-1 border-t border-slate-200">
+                        <span class="block mb-1"><i class="fas fa-bag-shopping mr-1"></i>Productos</span>
+                        ${items.map(x => `<div class="flex justify-between gap-3"><span>${x.qty} × ${esc(x.name)}${x.stock < x.qty ? ` <span class="text-[11px] font-bold text-amber-600">(stock: ${x.stock})</span>` : ''}</span><strong class="text-slate-800 tabular-nums">${fmt(x.price * x.qty)}</strong></div>`).join('')}
+                        <div class="flex justify-between gap-3 mt-1 pt-1 border-t border-slate-200"><span>Total con el servicio</span><strong class="text-slate-900 tabular-nums">${fmt(svc.price + items.reduce((s, x) => s + x.price * x.qty, 0))}</strong></div>
+                    </div>` : ''}
                 </div>`;
             if (!mem) {
                 // Socio inexistente o eliminado: igual se muestra, pero avisando
@@ -3250,7 +3329,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 dateTime: start.toISOString(),
                 stylistId,
                 status: 'scheduled',
-                source: 'web'
+                source: 'web',
+                ...(items.length ? { items: items.map(({ name, price, qty }) => ({ name, price, qty })) } : {})
             });
             saveBusinessData();
             renderApp('allApps');
@@ -3391,7 +3471,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     cancelButtonText: 'Cancelar',
                     confirmButtonColor: '#10b981',
                     preConfirm: () => {
-                        const m = document.getElementById('reqPaste').value.match(/turno-\d+-\d+-\d{12}-\d+/);
+                        const m = document.getElementById('reqPaste').value.match(/turno-\d+-\d+-\d{12}-\d+(?:-p\d+\.\d+(?:_\d+\.\d+)*)?/);
                         if (!m) { Swal.showValidationMessage('No encontré el código del turno. Copiá el mensaje entero, incluida la línea "Para agendarlo".'); return false; }
                         return m[0];
                     }
@@ -3419,7 +3499,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             <span class="font-bold text-slate-800 block">${esc(a.clientName)}</span>
                             <span class="text-[10px] text-slate-400 block">${a.memberNo ? 'Socio N° ' + a.memberNo + (a.clientPhone ? ' · ' : '') : ''}${esc(a.clientPhone || a.clientEmail || '')}</span>
                         </td>
-                        <td class="p-3.5 font-semibold text-slate-700">${esc(a.service)}</td>
+                        <td class="p-3.5 font-semibold text-slate-700">${esc(a.service)}${a.items && a.items.length ? `<span class="block text-[11px] font-medium text-indigo-600 mt-0.5"><i class="fas fa-bag-shopping mr-1"></i>${esc(itemsText(a.items))}</span>` : ''}</td>
                         <td class="p-3.5 text-slate-500">${professional ? esc(professional.name) : '—'}</td>
                         <td class="p-3.5 text-slate-600 font-semibold">${fmtDateTime(a.dateTime)}</td>
                         <td class="p-3.5">
@@ -3542,6 +3622,14 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 <input id="checkoutPrice" type="number" step="0.01" min="0" class="swal2-input !w-full !m-0" value="${defaultPrice}">
                                 ${matchingService ? '' : '<p class="text-[11px] text-amber-600 mt-1">Este servicio ya no está en el catálogo. Revisá el importe.</p>'}
                             </div>
+                            ${appo.items && appo.items.length ? `
+                            <div class="rounded-xl border border-slate-200 p-3">
+                                <label class="flex items-start gap-2 text-sm text-slate-700">
+                                    <input id="checkoutItems" type="checkbox" class="mt-1 accent-emerald-500" checked>
+                                    <span><strong>Cobrar y entregar los productos del pedido</strong>
+                                    <span class="block text-xs text-slate-500 mt-0.5">${esc(itemsText(appo.items))} · ${fmt(appo.items.reduce((s, x) => s + x.price * x.qty, 0))}. Se descuentan del stock.</span></span>
+                                </label>
+                            </div>` : ''}
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 mb-1">MÉTODO DE PAGO</label>
                                 <select id="checkoutMethodSelect" class="swal2-select w-full border rounded-xl p-2.5 text-sm focus:outline-none">
@@ -3567,7 +3655,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             Swal.showValidationMessage('Ingresá un importe mayor a cero.');
                             return false;
                         }
-                        return { method, stylistId: stylist ? parseInt(stylist) : null, price };
+                        const withItems = !!document.getElementById('checkoutItems')?.checked;
+                        return { method, stylistId: stylist ? parseInt(stylist) : null, price, withItems };
                     }
                 }).then(result => {
                     if (result.isConfirmed) {
@@ -3592,9 +3681,28 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             stylistId: result.value.stylistId
                         });
 
+                        let itemsTotal = 0;
+                        if (result.value.withItems && appo.items && appo.items.length) {
+                            appo.items.forEach((x, k) => {
+                                const lp = products.find(p => p.type === 'product' && p.name === x.name);
+                                if (lp) lp.stock = Math.max(0, (lp.stock || 0) - x.qty);
+                                itemsTotal += x.price * x.qty;
+                                transactions.push({
+                                    id: Date.now() + 1 + k,
+                                    type: 'income',
+                                    desc: `Venta: ${x.qty} × ${x.name} (pedido de ${appo.clientName})`,
+                                    amount: x.price * x.qty,
+                                    date: getTodayStr(),
+                                    paymentMethod: result.value.method,
+                                    stylistId: null
+                                });
+                            });
+                            appo.itemsDelivered = true;
+                        }
+
                         saveBusinessData();
                         renderAllAppointmentsPanel(container); 
-                        Swal.fire('Turno Cobrado', 'El estatus se actualizó a COMPLETADO y se asentó en bitácora.', 'success');
+                        Swal.fire('Turno Cobrado', itemsTotal ? `Se cobraron ${fmt(result.value.price + itemsTotal)} (servicio + productos) y se descontó el stock.` : 'El estatus se actualizó a COMPLETADO y se asentó en bitácora.', 'success');
                     }
                 });
             };
