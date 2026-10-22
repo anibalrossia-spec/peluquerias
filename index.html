@@ -612,18 +612,18 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
 
                         <main class="flex-1 flex items-center justify-center px-4 py-14">
                             <div class="w-full max-w-md text-center">
-                                <div class="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center mx-auto"><i class="far fa-id-card text-2xl"></i></div>
+                                ${portalCat && portalCat.logo ? `<img src="${esc(portalCat.logo)}" alt="Logo de ${esc(portalCat.salonName)}" class="w-20 h-20 rounded-2xl object-cover border border-slate-200 mx-auto shadow-sm">` : `<div class="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center mx-auto"><i class="far fa-id-card text-2xl"></i></div>`}
                                 <h1 class="mt-6 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight" style="text-wrap: balance">Bienvenido al portal de socios</h1>
-                                <p class="mt-3 text-base text-slate-500">Colocá tu código de socio para pedir tu turno.</p>
+                                <p class="mt-3 text-base text-slate-500">Escribí tu número de celular para pedir tu turno.</p>
                                 <form id="portalForm" class="mt-8 space-y-3" autocomplete="off">
-                                    <label for="portalCode" class="sr-only">Código de socio</label>
-                                    <input id="portalCode" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="ABCD-2345" ${portalCat ? '' : 'disabled'} value="${esc(portalSaved ? fmtCode(portalSaved) : '')}" class="w-full border border-slate-200 rounded-2xl p-4 text-xl text-center font-mono tracking-[0.3em] uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:bg-slate-50">
+                                    <label for="portalCode" class="sr-only">Tu número de celular</label>
+                                    <input id="portalCode" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="Ej: 341 555 1234" ${portalCat ? '' : 'disabled'} value="${esc(savedShow(portalSaved))}" class="w-full border border-slate-200 rounded-2xl p-4 text-xl text-center tabular-nums tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:bg-slate-50">
                                     <button id="portalBtn" type="submit" ${portalCat ? '' : 'disabled'} class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 shadow-xl shadow-emerald-500/20 transition disabled:opacity-50 disabled:shadow-none">Ingresar</button>
-                                    <label class="flex items-center justify-center gap-2 text-xs text-slate-500"><input id="portalRemember" type="checkbox" class="accent-emerald-500" checked> Recordar mi código en este dispositivo</label>
+                                    <label class="flex items-center justify-center gap-2 text-xs text-slate-500"><input id="portalRemember" type="checkbox" class="accent-emerald-500" checked> Recordarme en este dispositivo</label>
                                     <p id="portalMsg" class="text-sm text-rose-600" hidden></p>
                                 </form>
                                 ${portalCat ? '' : '<p class="mt-6 text-sm text-slate-400">El portal todavía no está habilitado. Volvé a entrar más tarde.</p>'}
-                                ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿No tenés código? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu peluquería</a></p>` : ''}
+                                ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu peluquería</a></p>` : ''}
                             </div>
                         </main>
 
@@ -642,9 +642,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         <header class="glass-header sticky top-0 z-30 border-b border-slate-200/60 px-4 py-4 sm:px-6">
                             <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/10">
+                                    ${settings.logo ? `<img src="${esc(settings.logo)}" alt="Logo" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0">` : `<div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/10">
                                         <i class="fas fa-scissors"></i>
-                                    </div>
+                                    </div>`}
                                     <div>
                                         <h1 class="text-lg font-extrabold tracking-tight text-slate-800 flex items-center gap-2">
                                             ${esc(currentBusiness.name)}
@@ -1635,6 +1635,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 services: products.filter(p => p.type === 'service').map(p => ({ name: p.name, price: p.price, duration: p.duration || DEFAULT_DURATION })),
                 products: products.filter(p => p.type === 'product').map(p => ({ name: p.name, price: p.price, inStock: p.stock > 0 })),
                 staff: staff.map(m => ({ id: m.id, name: m.name, role: m.role })),
+                phoneAccess: 1,
+                logo: settings.logo || '',
                 publishedAt: new Date().toISOString()
             };
         }
@@ -1661,7 +1663,11 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             ensureSalt();
             const cat = buildCatalog();
             cat.members = [];
-            for (const m of members.filter(x => x.active)) cat.members.push(await sealMember(m, cat.codeSalt));
+            for (const m of members.filter(x => x.active)) {
+                cat.members.push(await sealMember(m, cat.codeSalt));
+                const pk = phoneKey(m.phone, settings.whatsapp);
+                if (pk) cat.members.push(await sealMember(m, cat.codeSalt, 'T' + pk));
+            }
             for (const lm of (settings.legacyMembers || [])) cat.members.push(lm);
             return cat;
         }
@@ -2285,10 +2291,21 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     <div class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 space-y-5">
                         <div>
                             <h2 class="text-lg font-bold text-slate-800">Página de clientes</h2>
-                            <p class="text-xs text-slate-400 mt-1">Es la página principal del link. Cualquiera ve servicios y precios; tus socios ingresan con su código, eligen día y horario, y te mandan el pedido armado por WhatsApp. Vos lo confirmás y lo cargás en la Agenda.</p>
+                            <p class="text-xs text-slate-400 mt-1">Es la página principal del link. Cualquiera ve servicios y precios; tus socios ingresan con su celular, eligen día y horario, y te mandan el pedido armado por WhatsApp. Vos lo confirmás y lo cargás en la Agenda.</p>
                         </div>
                         ${status}
                         <div class="grid sm:grid-cols-2 gap-4">
+                            <div class="sm:col-span-2">
+                                <span class="block text-xs font-bold text-slate-500 mb-1">LOGO DEL LOCAL</span>
+                                <div class="flex flex-wrap items-center gap-4 p-3 rounded-xl border border-dashed border-slate-300">
+                                    ${settings.logo ? `<img src="${esc(settings.logo)}" alt="Logo actual" class="w-16 h-16 rounded-2xl object-cover border border-slate-200">` : '<div class="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl"><i class="fas fa-scissors"></i></div>'}
+                                    <div class="flex flex-wrap gap-2">
+                                        <label class="cursor-pointer px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition"><i class="fas fa-image mr-1"></i> ${settings.logo ? 'Cambiar logo' : 'Subir logo'}<input id="cfgLogo" type="file" accept="image/*" class="hidden"></label>
+                                        ${settings.logo ? '<button id="cfgLogoDel" type="button" class="px-4 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition">Quitar</button>' : ''}
+                                    </div>
+                                    <p class="w-full text-[11px] text-slate-400">Aparece en tu página de clientes y en el panel. Se recorta cuadrado.</p>
+                                </div>
+                            </div>
                             <div class="sm:col-span-2">
                                 <label for="cfgWhatsapp" class="block text-xs font-bold text-slate-500 mb-1">WHATSAPP DEL LOCAL</label>
                                 <input id="cfgWhatsapp" type="tel" inputmode="numeric" placeholder="5491123456789" value="${esc(settings.whatsapp)}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
@@ -2379,6 +2396,37 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 return true;
             }
 
+            // Logo: se recorta cuadrado y se achica para que la página cargue rápido
+            document.getElementById('cfgLogo').addEventListener('change', e => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                if (!/^image\//.test(f.type)) return Swal.fire('Archivo no válido', 'Elegí una imagen (JPG o PNG).', 'warning');
+                const fr = new FileReader();
+                fr.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => Swal.fire('No se pudo abrir la imagen', 'Probá con otra.', 'warning');
+                    img.onload = () => {
+                        const n = Math.min(img.width, img.height), sz = 256, cv = document.createElement('canvas');
+                        cv.width = cv.height = sz;
+                        const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, sz, sz);
+                        cx.drawImage(img, (img.width - n) / 2, (img.height - n) / 2, n, n, 0, 0, sz, sz);
+                        let out = cv.toDataURL('image/webp', 0.85); if (out.indexOf('image/webp') < 0) out = cv.toDataURL('image/jpeg', 0.85);
+                        const r = readForm(); if (!r.error) settings = r.value;
+                        settings.logo = out;
+                        saveBusinessData();
+                        renderApp('publicPage');
+                        Swal.fire({ title: 'Logo guardado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500 });
+                    };
+                    img.src = fr.result;
+                };
+                fr.readAsDataURL(f);
+            });
+            document.getElementById('cfgLogoDel')?.addEventListener('click', () => {
+                const r = readForm(); if (!r.error) settings = r.value;
+                settings.logo = '';
+                saveBusinessData();
+                renderApp('publicPage');
+            });
             document.getElementById('cfgSaveBtn').addEventListener('click', () => {
                 if (!saveForm()) return;
                 renderPublicConfigPanel(container);
@@ -2482,7 +2530,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 ${preview ? '' : '<button id="backHomeBtn" class="text-xs font-semibold text-slate-500 hover:text-slate-800 px-3 py-1.5 rounded-full border border-slate-200 hover:bg-slate-50 transition"><i class="fas fa-arrow-left text-[10px] mr-1"></i>Volver al inicio</button>'}
                                 </div>
                             </div>
-                            <h1 class="mt-5 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900" style="text-wrap: balance">${esc(cat.salonName)}</h1>
+                            <div class="mt-5 flex items-center gap-4">
+                                ${cat.logo ? `<img src="${esc(cat.logo)}" alt="Logo de ${esc(cat.salonName)}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-sm">` : ''}
+                                <h1 class="min-w-0 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900" style="text-wrap: balance">${esc(cat.salonName)}</h1>
+                            </div>
                             <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
                                 <span><i class="far fa-calendar text-emerald-500 mr-1.5"></i>${fmtDays(cat.days)} · ${minToHHMM(cat.openMin)} a ${minToHHMM(cat.closeMin)} h</span>
                                 ${cat.address ? `<span><i class="fas fa-location-dot text-emerald-500 mr-1.5"></i>${esc(cat.address)}</span>` : ''}
@@ -2517,21 +2568,21 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                     <div class="flex items-start gap-3">
                                         <div class="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100"><i class="fas fa-id-card"></i></div>
                                         <div class="min-w-0">
-                                            <p class="font-bold text-slate-800">Ingresá con tu código de socio</p>
-                                            <p class="text-xs text-slate-500 mt-0.5">Los turnos se piden con el código que te da ${esc(cat.salonName)}.</p>
+                                            <p class="font-bold text-slate-800">Ingresá con tu celular</p>
+                                            <p class="text-xs text-slate-500 mt-0.5">Escribí el número con el que sos socio de ${esc(cat.salonName)}.</p>
                                         </div>
                                     </div>
                                     <form id="gateForm" class="mt-4 flex flex-wrap gap-2" autocomplete="off">
-                                        <label for="gateCode" class="sr-only">Código de socio</label>
-                                        <input id="gateCode" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="ABCD-2345" class="flex-1 min-w-0 basis-40 border border-slate-200 rounded-xl p-3 text-base font-mono tracking-[0.2em] uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                                        <label for="gateCode" class="sr-only">Tu número de celular</label>
+                                        <input id="gateCode" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="Ej: 341 555 1234" class="flex-1 min-w-0 basis-40 border border-slate-200 rounded-xl p-3 text-base tabular-nums tracking-wide focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
                                         <button id="gateBtn" type="submit" class="px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold transition">Ingresar</button>
                                     </form>
                                     <label class="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                                        <input id="gateRemember" type="checkbox" class="accent-emerald-500" checked> Recordar mi código en este dispositivo
+                                        <input id="gateRemember" type="checkbox" class="accent-emerald-500" checked> Recordarme en este dispositivo
                                     </label>
                                     <p id="gateMsg" class="mt-3 text-xs text-rose-600" hidden></p>
-                                    ${plainCodes ? '<p class="mt-3 text-[11px] text-slate-400">Desde este dispositivo podés probar con el código de cualquier socio activo.</p>' : ''}
-                                    ${cat.whatsapp ? `<p class="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">¿Todavía no sos socio? Pedí tu código por WhatsApp: <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(cat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + cat.salonName + ' para pedir turnos.')}">${esc(waDisplay)}</a></p>` : ''}
+                                    ${plainCodes ? '<p class="mt-3 text-[11px] text-slate-400">Desde este dispositivo podés probar con el celular de cualquier socio activo.</p>' : ''}
+                                    ${cat.whatsapp ? `<p class="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">¿Todavía no sos socio? Pedilo por WhatsApp: <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(cat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + cat.salonName + ' para pedir turnos.')}">${esc(waDisplay)}</a></p>` : ''}
                                 </div>
 
                                 <div id="pubBooking" hidden>
@@ -2775,25 +2826,18 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             async function tryCode(code, { remember, silent }) {
                 const msg = $('gateMsg');
                 msg.hidden = true;
-                const clean = normCode(code);
-                if (clean.length !== 8) {
-                    if (!silent) { msg.textContent = 'El código tiene 8 caracteres, por ejemplo ABCD-2345.'; msg.hidden = false; }
+                const clean = String(code || '').trim();
+                if (!looksLikeCode(clean) && clean.replace(/\D/g, '').length < 6) {
+                    if (!silent) { msg.textContent = 'Escribí tu número de celular, por ejemplo 341 555 1234.'; msg.hidden = false; }
                     return;
                 }
                 $('gateBtn').disabled = true; $('gateBtn').textContent = 'Verificando…';
                 let found = null;
-                try {
-                    if (plainCodes) {
-                        const m = members.find(x => x.active && normCode(x.code) === clean);
-                        found = m ? { no: m.no, name: m.name } : null;
-                    } else {
-                        found = await openMember(clean, cat);
-                    }
-                } catch (e) { found = null; }
+                try { found = await findMember(clean, cat, plainCodes); } catch (e) { found = null; }
                 const btn = $('gateBtn'); if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
                 if (!found) {
                     if (silent) { store.del(codeKey); return; }
-                    msg.textContent = 'Ese código no es válido o está dado de baja. Revisalo o pedíselo al local.';
+                    msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile al local que te agregue.';
                     msg.hidden = false;
                     return;
                 }
@@ -2803,10 +2847,6 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             $('gateForm').addEventListener('submit', e => {
                 e.preventDefault();
                 tryCode($('gateCode').value, { remember: $('gateRemember').checked, silent: false });
-            });
-            $('gateCode').addEventListener('input', e => {
-                const c = normCode(e.target.value).slice(0, 8);
-                e.target.value = c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4) : c;
             });
             $('memLogout').addEventListener('click', () => { store.del(codeKey); clientView = null; renderApp(); window.scrollTo(0, 0); });
             $('backHomeBtn')?.addEventListener('click', () => { clientView = null; renderApp(); window.scrollTo(0, 0); });
@@ -2891,12 +2931,48 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromB64(saltB64), iterations: CODE_ITER }, km, 512);
             return new Uint8Array(bits);
         }
-        async function sealMember(m, saltB64) {
-            const bits = await deriveCodeBits(m.code, saltB64);
+        async function sealMember(m, saltB64, secret) {
+            const bits = await deriveCodeBits(secret || m.code, saltB64);
             const key = await crypto.subtle.importKey('raw', bits.slice(32), 'AES-GCM', false, ['encrypt']);
             const iv = crypto.getRandomValues(new Uint8Array(12));
             const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(JSON.stringify({ no: m.no, name: m.name })));
             return { h: toHex(bits.slice(0, 16)), iv: toB64(iv), d: toB64(new Uint8Array(ct)) };
+        }
+        // ===== Acceso del socio con su número de celular =====
+        // Se normaliza a 10 dígitos (código de área + número, sin 0, 15, +54 ni 9). Sin código de área, usa el del local.
+        function phoneCands(raw, refPhone) {
+            let d = String(raw || '').replace(/\D/g, '');
+            if (d.startsWith('00')) d = d.slice(2);
+            if (d.length >= 12 && d.startsWith('54')) d = d.slice(2);
+            if (d.length === 11 && d.startsWith('9')) d = d.slice(1);
+            if (d.startsWith('0')) d = d.slice(1);
+            const out = [];
+            const add = x => { if (x.length === 10 && !out.includes(x)) out.push(x); };
+            if (d.length === 10) add(d);
+            if (d.length === 12) [2, 3, 4].forEach(k => { if (d.substr(k, 2) === '15') add(d.slice(0, k) + d.slice(k + 2)); });
+            const ref = refPhone ? phoneCands(refPhone)[0] : '';
+            if (ref) {
+                let n = d;
+                if (n.length >= 8 && n.length <= 10 && n.startsWith('15')) n = n.slice(2);
+                if (n.length >= 6 && n.length <= 8) add(ref.slice(0, 10 - n.length) + n);
+            }
+            return out;
+        }
+        const phoneKey = (p, ref) => phoneCands(p, ref)[0] || '';
+        const looksLikeCode = raw => /[a-z]/i.test(raw || '') && normCode(raw).length === 8;
+        const savedShow = v => v ? (looksLikeCode(v) ? fmtCode(v) : v) : '';
+        // Busca al socio por su celular (o por su código anterior)
+        async function findMember(raw, cat, local) {
+            const ref = (cat && cat.whatsapp) || settings.whatsapp;
+            if (looksLikeCode(raw)) {
+                const clean = normCode(raw);
+                if (local) { const m = members.find(x => x.active && normCode(x.code) === clean); return m ? { no: m.no, name: m.name } : null; }
+                return await openMember(clean, cat);
+            }
+            const cands = phoneCands(raw, ref);
+            if (local) { const m = members.find(x => x.active && cands.includes(phoneKey(x.phone, settings.whatsapp))); return m ? { no: m.no, name: m.name } : null; }
+            for (const k of cands) { const f = await openMember('T' + k, cat); if (f) return f; }
+            return null;
         }
         async function openMember(code, cat) {
             if (!cat.codeSalt || !cat.members || !cat.members.length) return null;
@@ -2947,27 +3023,16 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const msg = document.getElementById('portalMsg');
             const btn = document.getElementById('portalBtn');
             if (!form || !cat) return;
-            input.addEventListener('input', e => {
-                const c = normCode(e.target.value).slice(0, 8);
-                e.target.value = c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4) : c;
-            });
             form.addEventListener('submit', async e => {
                 e.preventDefault();
                 msg.hidden = true;
-                const clean = normCode(input.value);
-                if (clean.length !== 8) { msg.textContent = 'El código tiene 8 caracteres, por ejemplo ABCD-2345.'; msg.hidden = false; return; }
+                const clean = input.value.trim();
+                if (!looksLikeCode(clean) && clean.replace(/\D/g, '').length < 6) { msg.textContent = 'Escribí tu número de celular, por ejemplo 341 555 1234.'; msg.hidden = false; return; }
                 btn.disabled = true; btn.textContent = 'Verificando…';
                 let found = null;
-                try {
-                    if (local) {
-                        const m = members.find(x => x.active && normCode(x.code) === clean);
-                        found = m ? { no: m.no, name: m.name } : null;
-                    } else {
-                        found = await openMember(clean, cat);
-                    }
-                } catch (err) { found = null; }
+                try { found = await findMember(clean, cat, local); } catch (err) { found = null; }
                 btn.disabled = false; btn.textContent = 'Ingresar';
-                if (!found) { msg.textContent = 'Ese código no es válido o está dado de baja. Revisalo o pedíselo a tu peluquería.'; msg.hidden = false; return; }
+                if (!found) { msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile a tu peluquería que te agregue.'; msg.hidden = false; return; }
                 const codeKey = 'ventiun_member_code_' + cat.salonName;
                 if (!local) { if (document.getElementById('portalRemember').checked) store.set(codeKey, clean); else store.del(codeKey); }
                 clientView = { cat, local, member: found };
@@ -2985,37 +3050,25 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const codeKey = 'ventiun_member_code_' + cat.salonName;
             const saved = store.get(codeKey) || '';
             const check = async raw => {
-                const clean = normCode(raw);
-                if (clean.length !== 8) return { error: 'El código tiene 8 caracteres, por ejemplo ABCD-2345.' };
+                const clean = String(raw || '').trim();
+                if (!looksLikeCode(clean) && clean.replace(/\D/g, '').length < 6) return { error: 'Escribí tu número de celular, por ejemplo 341 555 1234.' };
                 let found = null;
-                try {
-                    if (local) {
-                        const m = members.find(x => x.active && normCode(x.code) === clean);
-                        found = m ? { no: m.no, name: m.name } : null;
-                    } else {
-                        found = await openMember(clean, cat);
-                    }
-                } catch (e) { found = null; }
-                return found ? { member: found, clean } : { error: 'Ese código no es válido o está dado de baja. Revisalo o pedíselo a la peluquería.' };
+                try { found = await findMember(clean, cat, local); } catch (e) { found = null; }
+                return found ? { member: found, clean } : { error: 'No encontramos un socio con ese celular. Revisalo o pedile a la peluquería que te agregue.' };
             };
             const r = await Swal.fire({
                 title: 'Pedir turno',
-                html: `<p class="text-sm text-slate-500">Ingresá tu código de socio de <strong>${esc(cat.salonName)}</strong>.</p>
-                       <input id="bkCode" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-2345" value="${esc(saved ? fmtCode(saved) : '')}" class="mt-4 w-full border border-slate-200 rounded-xl p-3 text-lg text-center font-mono tracking-[0.25em] uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                       <label class="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500"><input id="bkRemember" type="checkbox" class="accent-emerald-500" checked> Recordar mi código en este dispositivo</label>
-                       ${cat.whatsapp ? `<p class="mt-4 text-xs text-slate-400">¿No tenés código? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(cat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + cat.salonName + ' para pedir turnos.')}">Pedíselo por WhatsApp</a></p>` : ''}`,
+                html: `<p class="text-sm text-slate-500">Escribí tu número de celular de socio de <strong>${esc(cat.salonName)}</strong>.</p>
+                       <input id="bkCode" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="Ej: 341 555 1234" value="${esc(savedShow(saved))}" class="mt-4 w-full border border-slate-200 rounded-xl p-3 text-lg text-center tabular-nums tracking-wide focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                       <label class="mt-3 flex items-center justify-center gap-2 text-xs text-slate-500"><input id="bkRemember" type="checkbox" class="accent-emerald-500" checked> Recordarme en este dispositivo</label>
+                       ${cat.whatsapp ? `<p class="mt-4 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(cat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + cat.salonName + ' para pedir turnos.')}">Pedíselo por WhatsApp</a></p>` : ''}`,
                 showCancelButton: true,
                 confirmButtonText: 'Ingresar',
                 cancelButtonText: 'Cancelar',
                 confirmButtonColor: '#10b981',
                 showLoaderOnConfirm: true,
                 didOpen: () => {
-                    const inp = document.getElementById('bkCode');
-                    inp.focus();
-                    inp.addEventListener('input', e => {
-                        const c = normCode(e.target.value).slice(0, 8);
-                        e.target.value = c.length > 4 ? c.slice(0, 4) + '-' + c.slice(4) : c;
-                    });
+                    document.getElementById('bkCode').focus();
                 },
                 preConfirm: async () => {
                     const res = await check(document.getElementById('bkCode').value);
@@ -3056,13 +3109,13 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
                         <div class="min-w-0">
                             <h2 class="text-lg font-bold text-slate-800">Socios</h2>
-                            <p class="text-xs text-slate-400 mt-1">Cada socio recibe un código para pedir turnos desde la página de clientes. Sin código se ven los precios, pero no se puede pedir turno.</p>
+                            <p class="text-xs text-slate-400 mt-1">Cada socio pide turno desde la página de clientes escribiendo su número de celular. Sin ser socio se ven los precios, pero no se puede pedir turno.</p>
                         </div>
                         <button id="newMemberBtn" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm"><i class="fas fa-user-plus mr-1"></i> Nuevo socio</button>
                     </div>
                     ${pending ? `
                         <div class="mb-5 flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                            <span><i class="fas fa-triangle-exclamation mr-1.5"></i><strong>Hay cambios en socios sin publicar.</strong> Los códigos nuevos o dados de baja empiezan a valer cuando publicás.</span>
+                            <span><i class="fas fa-triangle-exclamation mr-1.5"></i><strong>Hay cambios en socios sin publicar.</strong> Los socios nuevos o dados de baja empiezan a valer cuando publicás.</span>
                             <button id="membersPublishBtn" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold">Publicar ahora</button>
                         </div>` : ''}
                     <div class="mb-4">
@@ -3075,7 +3128,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 <tr class="text-slate-400 font-semibold text-xs">
                                     <th class="p-3.5 text-left">N°</th>
                                     <th class="p-3.5 text-left">Socio</th>
-                                    <th class="p-3.5 text-left">Código</th>
+                                    <th class="p-3.5 text-left">Entra con</th>
                                     <th class="p-3.5 text-left">Estado</th>
                                     <th class="p-3.5 text-left">Acciones</th>
                                 </tr>
@@ -3088,13 +3141,13 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const body = document.getElementById('membersBody');
             function inviteText(m) {
                 const salon = currentBusiness.name;
-                return `¡Hola ${m.name}! Ya sos socio de ${salon} (N° ${m.no}).\nTu código para pedir turnos es: ${fmtCode(m.code)}` + `\nIngresá acá: ${bizLink()}`;
+                return `¡Hola ${m.name}! Ya sos socio de ${salon} (N° ${m.no}).\nPara pedir turno entrá acá y escribí tu número de celular:\n${bizLink()}`;
             }
             function draw() {
                 const q = (document.getElementById('memberSearch').value || '').toLowerCase().trim();
                 const list = [...members].sort((a, b) => a.no - b.no).filter(m => !q || m.name.toLowerCase().includes(q) || String(m.no) === q || (m.phone || '').includes(q));
                 if (!members.length) {
-                    body.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400 text-xs">Todavía no tenés socios. Creá el primero con "Nuevo socio" y mandale su código por WhatsApp.</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400 text-xs">Todavía no tenés socios. Creá el primero con "Nuevo socio": va a pedir turno con su número de celular.</td></tr>`;
                     return;
                 }
                 if (!list.length) {
@@ -3111,16 +3164,16 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             <span class="text-[10px] text-slate-400 block tabular-nums">${esc(m.phone || 'Sin teléfono')}</span>
                         </td>
                         <td class="p-3.5">
-                            <span class="font-mono font-bold tracking-widest text-slate-800 select-all">${esc(fmtCode(m.code))}</span>
-                            <button data-copy="${m.id}" class="ml-1.5 text-slate-400 hover:text-emerald-600 p-1" aria-label="Copiar código"><i class="far fa-copy"></i></button>
+                            ${phoneKey(m.phone, settings.whatsapp) ? `<span class="font-bold text-slate-800 tabular-nums select-all"><i class="fas fa-mobile-screen-button text-emerald-500 mr-1"></i>${esc(m.phone)}</span>` : `<button data-act="phone" data-id="${m.id}" class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 px-2.5 py-1 rounded-lg"><i class="fas fa-plus mr-1"></i>Cargar celular</button>`}
+                            <span class="block text-[10px] text-slate-400 mt-0.5">o código <span class="font-mono tracking-wider select-all">${esc(fmtCode(m.code))}</span><button data-copy="${m.id}" class="ml-1 text-slate-400 hover:text-emerald-600" aria-label="Copiar mensaje para el socio"><i class="far fa-copy"></i></button></span>
                         </td>
                         <td class="p-3.5">
                             <span class="text-[9px] font-bold px-2.5 py-1 rounded-full border uppercase ${m.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200'}">${m.active ? 'Activo' : 'De baja'}</span>
                         </td>
                         <td class="p-3.5">
                             <div class="flex flex-wrap items-center gap-1">
-                                ${phone.length >= 10 ? `<a href="https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(inviteText(m))}" target="_blank" rel="noopener" class="text-xs font-bold text-emerald-600 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg"><i class="fab fa-whatsapp mr-1"></i>Enviar código</a>` : ''}
-                                <button data-act="regen" data-id="${m.id}" class="text-xs font-semibold text-slate-600 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg">Nuevo código</button>
+                                ${phoneKey(m.phone, settings.whatsapp) ? `<a href="https://wa.me/${waNumber(phoneKey(m.phone, settings.whatsapp))}?text=${encodeURIComponent(inviteText(m))}" target="_blank" rel="noopener" class="text-xs font-bold text-emerald-600 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg"><i class="fab fa-whatsapp mr-1"></i>Avisarle</a>` : ''}
+                                ${phoneKey(m.phone, settings.whatsapp) ? `<button data-act="phone" data-id="${m.id}" class="text-xs font-semibold text-slate-600 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg">Cambiar celular</button>` : ''}
                                 <button data-act="toggle" data-id="${m.id}" class="text-xs font-semibold text-slate-600 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg">${m.active ? 'Dar de baja' : 'Reactivar'}</button>
                                 <button data-act="del" data-id="${m.id}" class="text-rose-500 hover:text-rose-700 p-2" aria-label="Eliminar socio"><i class="fas fa-trash"></i></button>
                             </div>
@@ -3130,16 +3183,27 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
 
                 body.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => {
                     const m = members.find(x => String(x.id) === btn.dataset.copy);
-                    const ok = () => Swal.fire({ title: 'Código copiado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+                    const ok = () => Swal.fire({ title: 'Mensaje copiado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
                     try { navigator.clipboard.writeText(inviteText(m)).then(ok, () => {}); } catch (e) {}
                 }));
                 body.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
                     const m = members.find(x => String(x.id) === btn.dataset.id);
                     if (!m) return;
-                    if (btn.dataset.act === 'regen') {
-                        const r = await Swal.fire({ title: '¿Generar un código nuevo?', text: `El código actual de ${m.name} deja de funcionar cuando publiques.`, showCancelButton: true, confirmButtonText: 'Generar', cancelButtonText: 'Cancelar', confirmButtonColor: '#0f172a' });
+                    if (btn.dataset.act === 'phone') {
+                        const r = await Swal.fire({
+                            title: 'Celular de ' + m.name,
+                            html: `<p class="text-sm text-slate-500">Con este número va a pedir turno.</p><input id="mpPhone" type="tel" inputmode="tel" value="${esc(m.phone || '')}" placeholder="Ej: 341 555 1234" class="mt-3 w-full border border-slate-200 rounded-xl p-3 text-lg text-center">`,
+                            showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#10b981',
+                            didOpen: () => document.getElementById('mpPhone').focus(),
+                            preConfirm: () => {
+                                const ph = document.getElementById('mpPhone').value.trim();
+                                const err = memberPhoneError(ph, m.id);
+                                if (err) { Swal.showValidationMessage(err); return false; }
+                                return ph;
+                            }
+                        });
                         if (!r.isConfirmed) return;
-                        m.code = genCode();
+                        m.phone = r.value;
                     } else if (btn.dataset.act === 'toggle') {
                         m.active = !m.active;
                     } else {
@@ -3152,6 +3216,14 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 }));
             }
 
+            // El celular es el acceso del socio: tiene que ser válido y no repetirse
+            function memberPhoneError(ph, exceptId) {
+                const pk = phoneKey(ph, settings.whatsapp);
+                if (!pk) return 'Escribí el celular con código de área, por ejemplo 341 555 1234.';
+                const dup = members.find(x => x.id !== exceptId && phoneKey(x.phone, settings.whatsapp) === pk);
+                if (dup) return `Ese celular ya es de ${dup.name} (socio N° ${dup.no}).`;
+                return '';
+            }
             document.getElementById('memberSearch').addEventListener('input', draw);
             document.getElementById('membersPublishBtn')?.addEventListener('click', startPublish);
             document.getElementById('newMemberBtn').addEventListener('click', async () => {
@@ -3159,18 +3231,20 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 const r = await Swal.fire({
                     title: 'Nuevo socio',
                     showCancelButton: true,
-                    confirmButtonText: 'Crear y generar código',
+                    confirmButtonText: 'Crear socio',
                     cancelButtonText: 'Cancelar',
                     confirmButtonColor: '#10b981',
                     html: `
                         <div class="text-left space-y-3 mt-2">
                             <div><label for="nmName" class="block text-xs font-bold text-slate-500 mb-1">NOMBRE Y APELLIDO</label><input id="nmName" class="${inputCls}" placeholder="Ana Pérez"></div>
-                            <div><label for="nmPhone" class="block text-xs font-bold text-slate-500 mb-1">WHATSAPP (OPCIONAL)</label><input id="nmPhone" type="tel" class="${inputCls}" placeholder="5491123456789"><p class="text-[11px] text-slate-400 mt-1">Con código de país y sin el 15, para mandarle el código con un toque.</p></div>
+                            <div><label for="nmPhone" class="block text-xs font-bold text-slate-500 mb-1">CELULAR (WHATSAPP)</label><input id="nmPhone" type="tel" inputmode="tel" class="${inputCls}" placeholder="341 555 1234"><p class="text-[11px] text-slate-400 mt-1">Con este número el socio pide turno desde la página. Con código de área.</p></div>
                         </div>`,
                     preConfirm: () => {
                         const name = document.getElementById('nmName').value.trim();
                         const phone = document.getElementById('nmPhone').value.trim();
                         if (!name) { Swal.showValidationMessage('Ingresá el nombre del socio.'); return false; }
+                        const err = memberPhoneError(phone, null);
+                        if (err) { Swal.showValidationMessage(err); return false; }
                         return { name, phone };
                     }
                 });
@@ -3181,15 +3255,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 settings.nextMemberNo = no + 1;
                 touchMembers();
                 renderMembersPanel(container);
-                const phone = (m.phone || '').replace(/\D/g, '');
+                const pk = phoneKey(m.phone, settings.whatsapp);
                 Swal.fire({
                     title: 'Socio creado',
                     icon: 'success',
                     confirmButtonColor: '#10b981',
-                    html: `<p class="text-sm text-slate-600">Código de <strong>${esc(m.name)}</strong> (N° ${m.no}):</p>
-                           <p class="mt-3 text-2xl font-mono font-extrabold tracking-[0.25em] text-slate-900 select-all">${esc(fmtCode(m.code))}</p>
-                           ${phone.length >= 10 ? `<a href="https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(inviteText(m))}" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:underline"><i class="fab fa-whatsapp"></i> Enviarle el código por WhatsApp</a>` : ''}
-                           <p class="mt-4 text-xs text-slate-400">Publicá la página para que el código empiece a funcionar.</p>`
+                    html: `<p class="text-sm text-slate-600"><strong>${esc(m.name)}</strong> (socio N° ${m.no}) pide turno con su celular:</p>
+                           <p class="mt-3 text-2xl font-extrabold text-slate-900 tabular-nums">${esc(m.phone)}</p>
+                           ${pk ? `<a href="https://wa.me/${waNumber(pk)}?text=${encodeURIComponent(inviteText(m))}" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:underline"><i class="fab fa-whatsapp"></i> Avisarle por WhatsApp</a>` : ''}
+                           <p class="mt-4 text-xs text-slate-400">Se activa cuando se actualiza tu página de clientes.</p>`
                 });
             });
             draw();
@@ -3215,7 +3289,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const who = a.clientName.split(' ')[0];
             const prof = staff.find(x => x.id === a.stylistId);
             const addr = settings.address ? ` en ${settings.address}` : '';
-            if (kind === 'confirm') return `¡Hola ${who}! Tu turno en ${salon} quedó confirmado:\n• ${a.service}\n• ${apptWhen(a)}${prof ? `\n• Te atiende ${prof.name}` : ''}${a.items && a.items.length ? `\n• Te separamos: ${itemsText(a.items)}` : ''}\nTe esperamos${addr}. Si no podés venir, avisanos por acá.`;
+            if (kind === 'confirm') return `✅ ¡Hola ${who}! Tu turno en ${salon} está confirmado:\n• ${a.service}\n• ${apptWhen(a)}${prof ? `\n• Te atiende ${prof.name}` : ''}${a.items && a.items.length ? `\n• Te separamos: ${itemsText(a.items)}` : ''}\nTe esperamos${addr}. Si no podés venir, avisanos por acá.`;
             if (kind === 'remind') return `¡Hola ${who}! Te recordamos tu turno en ${salon}: ${apptWhen(a)} (${a.service}).\nTe esperamos${addr}. Si no podés venir, avisanos por acá así liberamos el horario.`;
             return `¡Hola ${who}! Te avisamos que tu turno en ${salon} del ${apptWhen(a)} (${a.service}) quedó cancelado. Si querés, te ofrecemos otro horario.`;
         }
@@ -3335,15 +3409,28 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         (waPhone.length >= 10 ? `<a href="https://wa.me/${waPhone}?text=${encodeURIComponent(busyMsg)}" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:underline"><i class="fab fa-whatsapp"></i> Avisarle y ofrecer otro horario</a>` : '')
                 });
             }
+            // Mensaje de confirmación listo antes de tocar el botón: WhatsApp se abre en el mismo toque
+            const draftAppo = { clientName: name, service: svc.name, dateTime: start.toISOString(), stylistId, ...(items.length ? { items: items.map(({ name, price, qty }) => ({ name, price, qty })) } : {}) };
+            const directMsg = apptMessage(draftAppo, 'confirm');
+            const canWa = waPhone.length >= 10;
+            let waOpened = false;
             const r = await Swal.fire({
                 title: 'Agendar pedido de turno',
-                html: detail + (mem ? '' : '<p class="mt-3 text-xs text-amber-700">Ese número de socio no está en tu lista. Revisalo antes de agendar.</p>'),
+                html: detail + (mem ? '' : '<p class="mt-3 text-xs text-amber-700">Ese número de socio no está en tu lista. Revisalo antes de agendar.</p>')
+                    + (canWa ? `<p class="mt-3 text-xs text-slate-500"><i class="fab fa-whatsapp text-emerald-500 mr-1"></i>Al agendar se abre WhatsApp con la confirmación lista para ${esc(name.split(' ')[0])}: solo tocás <b>Enviar</b>.</p>` : ''),
                 showCancelButton: true,
-                confirmButtonText: 'Agendar turno',
+                showDenyButton: canWa,
+                confirmButtonText: canWa ? '<i class="fab fa-whatsapp mr-1"></i> Agendar y confirmar por WhatsApp' : 'Agendar turno',
+                denyButtonText: 'Agendar sin avisar',
                 cancelButtonText: 'Ahora no',
-                confirmButtonColor: '#10b981'
+                confirmButtonColor: '#10b981',
+                denyButtonColor: '#64748b',
+                didOpen: () => {
+                    const b = Swal.getConfirmButton && Swal.getConfirmButton();
+                    if (b && canWa) b.addEventListener('click', () => { waOpened = !!window.open(waLink(waPhone, directMsg), '_blank'); });
+                }
             });
-            if (!r.isConfirmed) return;
+            if (!r.isConfirmed && !r.isDenied) return;
             appointments.push({
                 id: 'app_' + Date.now(),
                 token,
@@ -3363,6 +3450,21 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             renderApp('allApps');
             const newAppo = appointments[appointments.length - 1];
             const okMsg = apptMessage(newAppo, 'confirm');
+            if (r.isConfirmed && canWa) {
+                newAppo.confirmedAt = new Date().toISOString();
+                saveBusinessData();
+                renderApp('allApps');
+                Swal.fire({
+                    title: 'Turno agendado',
+                    icon: 'success',
+                    confirmButtonText: 'Listo',
+                    confirmButtonColor: '#10b981',
+                    html: `<p class="text-sm text-slate-600">${esc(name)} · ${esc(when)}</p>` + (waOpened ? '<p class="mt-2 text-xs text-slate-500">Se abrió WhatsApp con la confirmación: tocá <b>Enviar</b>.</p>' : '')
+                        + `<a href="${waLink(waPhone, okMsg)}" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-600 hover:underline"><i class="fab fa-whatsapp"></i> ${waOpened ? 'Abrir WhatsApp de nuevo' : 'Enviar la confirmación por WhatsApp'}</a>`
+                });
+                syncAvailability('Turno agendado');
+                return;
+            }
             await Swal.fire({
                 title: 'Turno agendado',
                 icon: 'success',
