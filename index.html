@@ -416,6 +416,288 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             return methods;
         }
 
+        // ===== Ventas y comisiones por estilista, historial y planillas para imprimir =====
+        const PAY_LABEL = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia', otros: 'Otros' };
+        function txTime(t) { const ms = t.ts || (typeof t.id === 'number' && t.id > 1e12 ? t.id : 0); return ms ? new Date(ms) : null; }
+        function txHour(t) { const d = txTime(t); return d ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : ''; }
+        function txPct(t) {
+            if (typeof t.commPct === 'number') return t.commPct;
+            const m = staff.find(s => Number(s.id) === Number(t.stylistId));
+            return m ? Number(m.commissionPct) || 0 : 0;
+        }
+        function txComm(t) { return t.stylistId ? Math.round(t.amount * txPct(t)) / 100 : 0; }
+        function txItem(t) {
+            if (t.item) return t.item;
+            let d = String(t.desc || '').replace(/^(Venta|Egreso):\s*/, '').replace(/\s*\((Colaborador|Estilista):[^)]*\)\s*$/, '');
+            const m = d.match(/^Turno completado \((.*)\) para (.*)$/);
+            return m ? m[1] : d;
+        }
+        function txClient(t) {
+            if (t.client) return t.client;
+            const m = String(t.desc || '').match(/ para (.*?)(?: \((?:Colaborador|Estilista):.*)?$/) || String(t.desc || '').match(/\(pedido de (.*)\)$/);
+            return m ? m[1] : '';
+        }
+        function stylistName(id, t) { const m = staff.find(s => Number(s.id) === Number(id)); return m ? m.name : ((t && t.stylistName) || 'Ex colaborador'); }
+        function stampStylist(id) {
+            const m = id ? staff.find(s => Number(s.id) === Number(id)) : null;
+            return m ? { commPct: Number(m.commissionPct) || 0, stylistName: m.name } : {};
+        }
+        // Fija el % y el nombre en las ventas viejas antes de cambiar o borrar a un estilista
+        function stampStaffHistory(id) {
+            const m = staff.find(s => Number(s.id) === Number(id));
+            if (!m) return;
+            transactions.forEach(t => {
+                if (t.type === 'income' && Number(t.stylistId) === Number(id) && typeof t.commPct !== 'number') { t.commPct = Number(m.commissionPct) || 0; t.stylistName = m.name; }
+            });
+        }
+        function stylistReport(from, to) {
+            const map = new Map();
+            staff.forEach(m => map.set(Number(m.id), { id: Number(m.id), name: m.name, role: m.role || '', pct: Number(m.commissionPct) || 0, count: 0, sales: 0, comm: 0, items: [] }));
+            const unassigned = { count: 0, sales: 0 };
+            transactions.forEach(t => {
+                if (t.type !== 'income' || t.date < from || t.date > to) return;
+                if (!t.stylistId) { unassigned.count++; unassigned.sales += t.amount; return; }
+                const sid = Number(t.stylistId);
+                if (!map.has(sid)) map.set(sid, { id: sid, name: stylistName(sid, t), role: '', pct: txPct(t), count: 0, sales: 0, comm: 0, items: [], gone: true });
+                const r = map.get(sid);
+                r.count++; r.sales += t.amount; r.comm += txComm(t); r.items.push(t);
+            });
+            const rows = [...map.values()].filter(r => r.count || !r.gone);
+            rows.forEach(r => {
+                r.comm = Math.round(r.comm * 100) / 100;
+                r.items.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : ((txTime(a) || 0) - (txTime(b) || 0)));
+            });
+            rows.sort((a, b) => b.sales - a.sales);
+            return { rows, unassigned };
+        }
+        function dayStats(from, to) {
+            const tx = transactions.filter(t => t.date >= from && t.date <= to);
+            let income = 0, expense = 0, sales = 0;
+            const byMethod = { efectivo: 0, tarjeta: 0, transferencia: 0, otros: 0 };
+            tx.forEach(t => {
+                const m = (t.paymentMethod || (t.type === 'expense' ? 'efectivo' : 'otros')).toLowerCase();
+                const k = byMethod.hasOwnProperty(m) ? m : 'otros';
+                if (t.type === 'income') { income += t.amount; sales++; byMethod[k] += t.amount; }
+                else { expense += t.amount; byMethod[k] -= t.amount; }
+            });
+            const rep = stylistReport(from, to);
+            const comm = Math.round(rep.rows.reduce((a, r) => a + r.comm, 0) * 100) / 100;
+            return { tx, income, expense, sales, byMethod, rep, comm, net: income - expense, owner: Math.round((income - expense - comm) * 100) / 100 };
+        }
+        function fmtDay(ds) { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }); }
+        function fmtDayShort(ds) { const p = ds.split('-'); return p[2] + '/' + p[1]; }
+        function rangeLabel(from, to) { return from === to ? fmtDay(from) : `${fmtDay(from)} al ${fmtDay(to)}`; }
+
+        // Período elegido en Finanzas
+        let finRange = null;
+        let finDaysShown = 31;
+        function setFinRange(key, from, to) {
+            const d = new Date();
+            const today = toLocalDateStr(d);
+            if (key === 'today') { from = to = today; }
+            else if (key === 'yesterday') { const y = new Date(); y.setDate(y.getDate() - 1); from = to = toLocalDateStr(y); }
+            else if (key === 'week') { const y = new Date(); y.setDate(y.getDate() - 6); from = toLocalDateStr(y); to = today; }
+            else if (key === 'month') { from = today.slice(0, 8) + '01'; to = today; }
+            else if (key === 'lastmonth') { from = toLocalDateStr(new Date(d.getFullYear(), d.getMonth() - 1, 1)); to = toLocalDateStr(new Date(d.getFullYear(), d.getMonth(), 0)); }
+            if (!from || !to) { from = to = today; key = 'today'; }
+            if (from > to) [from, to] = [to, from];
+            finRange = { key, from, to };
+        }
+
+        // Impresión: arma una hoja limpia en un marco oculto y abre el diálogo de imprimir
+        function printDoc(title, body) {
+            const css = 'body{font:13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:24px}h1{font-size:20px;margin:0}h2{font-size:14px;margin:18px 0 6px}.muted{color:#555}.head{display:flex;gap:12px;align-items:center;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px}.head img{width:52px;height:52px;border-radius:10px;object-fit:cover}table{width:100%;border-collapse:collapse;margin-top:4px}th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #ddd;font-size:12px;vertical-align:top}th{background:#f1f5f9;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}.n{text-align:right;white-space:nowrap}tfoot td{font-weight:700;border-top:2px solid #111;border-bottom:0}.kpis{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.kpi{border:1px solid #bbb;border-radius:8px;padding:6px 12px;min-width:110px;font-size:11px;color:#444}.kpi b{display:block;font-size:16px;color:#111}.kpi.main{border:2px solid #111}.firma{margin-top:56px;display:flex;gap:40px}.firma div{flex:1;border-top:1px solid #111;padding-top:4px;text-align:center;font-size:11px}.pb{page-break-before:always}@page{margin:12mm}';
+            const logo = settings.logo ? `<img src="${settings.logo}" alt="">` : '';
+            const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body><div class="head">${logo}<div><h1>${esc(currentBusiness ? currentBusiness.name : '')}</h1><div class="muted">${esc(title)} · impreso el ${new Date().toLocaleString('es-AR')}</div></div></div>${body}</body></html>`;
+            let f = document.getElementById('vgPrintFrame');
+            if (f) f.remove();
+            f = document.createElement('iframe');
+            f.id = 'vgPrintFrame';
+            f.setAttribute('aria-hidden', 'true');
+            f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+            document.body.appendChild(f);
+            const doc = f.contentWindow.document;
+            doc.open(); doc.write(html); doc.close();
+            setTimeout(() => {
+                try { f.contentWindow.focus(); f.contentWindow.print(); }
+                catch (e) { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); w.focus(); w.print(); } }
+            }, 400);
+        }
+        function stylistPrintBody(r, from, to) {
+            const one = from === to;
+            const rows = r.items.map(t => `<tr><td>${one ? '' : esc(fmtDayShort(t.date)) + ' '}${txHour(t)}</td><td>${esc(txItem(t))}</td><td>${esc(txClient(t))}</td><td>${esc(PAY_LABEL[t.paymentMethod] || t.paymentMethod || '')}</td><td class="n">${fmt(t.amount)}</td><td class="n">${txPct(t)}%</td><td class="n">${fmt(txComm(t))}</td></tr>`).join('');
+            return `<h2 style="font-size:17px">${esc(r.name)}${r.role ? ' <span class="muted" style="font-weight:400">· ' + esc(r.role) + '</span>' : ''}</h2>
+                <div class="muted">${one ? 'Día' : 'Período'}: ${esc(rangeLabel(from, to))}</div>
+                <div class="kpis"><div class="kpi">Trabajos<b>${r.count}</b></div><div class="kpi">Vendió<b>${fmt(r.sales)}</b></div><div class="kpi main">Comisión a cobrar<b>${fmt(r.comm)}</b></div><div class="kpi">Ticket promedio<b>${fmt(r.count ? Math.round(r.sales / r.count) : 0)}</b></div></div>
+                ${r.count ? `<table><thead><tr><th>${one ? 'Hora' : 'Fecha'}</th><th>Servicio / producto</th><th>Cliente</th><th>Pago</th><th class="n">Importe</th><th class="n">%</th><th class="n">Comisión</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">Total</td><td class="n">${fmt(r.sales)}</td><td></td><td class="n">${fmt(r.comm)}</td></tr></tfoot></table>` : '<p class="muted">Sin trabajos en el período.</p>'}
+                <div class="firma"><div>Firma del estilista</div><div>Firma del local</div></div>`;
+        }
+        function printStylist(id, from, to) {
+            const r = stylistReport(from, to).rows.find(x => x.id === Number(id));
+            if (!r) return;
+            printDoc(`Liquidación de comisiones · ${r.name}`, stylistPrintBody(r, from, to));
+        }
+        function printAllStylists(from, to) {
+            const rows = stylistReport(from, to).rows.filter(r => r.count);
+            if (!rows.length) return Swal.fire('Sin ventas', 'No hay ventas asignadas a estilistas en ese período.', 'info');
+            printDoc(`Liquidación de comisiones · ${rangeLabel(from, to)}`, rows.map((r, i) => `<div class="${i ? 'pb' : ''}">${stylistPrintBody(r, from, to)}</div>`).join(''));
+        }
+        function printDay(from, to = from) {
+            const s = dayStats(from, to);
+            const one = from === to;
+            const cls = cashClosures.filter(c => c.date >= from && c.date <= to);
+            const mov = s.tx.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : ((txTime(a) || 0) - (txTime(b) || 0)));
+            const body = `<div class="muted">${one ? 'Día' : 'Período'}: ${esc(rangeLabel(from, to))}</div>
+                <div class="kpis"><div class="kpi">Ventas<b>${s.sales}</b></div><div class="kpi">Ingresos<b>${fmt(s.income)}</b></div><div class="kpi">Egresos<b>−${fmt(s.expense)}</b></div><div class="kpi">Comisiones estilistas<b>−${fmt(s.comm)}</b></div><div class="kpi main">Ganancia del dueño<b>${fmt(s.owner)}</b></div></div>
+                <h2>Ventas y comisiones por estilista</h2>
+                <table><thead><tr><th>Estilista</th><th class="n">Trabajos</th><th class="n">Vendió</th><th class="n">%</th><th class="n">Comisión</th></tr></thead><tbody>
+                ${s.rep.rows.filter(r => r.count).map(r => `<tr><td>${esc(r.name)}</td><td class="n">${r.count}</td><td class="n">${fmt(r.sales)}</td><td class="n">${r.pct}%</td><td class="n">${fmt(r.comm)}</td></tr>`).join('')}
+                ${s.rep.unassigned.count ? `<tr><td>Sin estilista (venta directa)</td><td class="n">${s.rep.unassigned.count}</td><td class="n">${fmt(s.rep.unassigned.sales)}</td><td></td><td class="n">—</td></tr>` : ''}
+                </tbody><tfoot><tr><td>Total</td><td class="n">${s.sales}</td><td class="n">${fmt(s.income)}</td><td></td><td class="n">${fmt(s.comm)}</td></tr></tfoot></table>
+                <h2>Neto por método de pago</h2>
+                <table><tbody>${Object.keys(PAY_LABEL).map(k => `<tr><td>${PAY_LABEL[k]}</td><td class="n">${fmt(s.byMethod[k])}</td></tr>`).join('')}</tbody></table>
+                ${cls.length ? `<h2>Arqueo de caja</h2><table><thead><tr><th>Cierre</th><th class="n">Efectivo esperado</th><th class="n">Contado</th><th class="n">Diferencia</th></tr></thead><tbody>${cls.map(c => `<tr><td>${one ? '' : esc(fmtDayShort(c.date)) + ' '}${new Date(c.closedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</td><td class="n">${fmt(c.expectedCash)}</td><td class="n">${fmt(c.countedCash)}</td><td class="n">${c.diff ? (c.diff > 0 ? 'Sobró ' : 'Faltó ') + fmt(Math.abs(c.diff)) : 'OK'}</td></tr>`).join('')}</tbody></table>` : ''}
+                <h2>Movimientos</h2>
+                ${mov.length ? `<table><thead><tr><th>${one ? 'Hora' : 'Fecha'}</th><th>Concepto</th><th>Estilista</th><th>Pago</th><th class="n">Importe</th></tr></thead><tbody>${mov.map(t => `<tr><td>${one ? '' : esc(fmtDayShort(t.date)) + ' '}${txHour(t)}</td><td>${esc(txItem(t))}${txClient(t) ? ' <span class="muted">· ' + esc(txClient(t)) + '</span>' : ''}</td><td>${t.stylistId ? esc(stylistName(t.stylistId, t)) : ''}</td><td>${esc(PAY_LABEL[t.paymentMethod] || t.paymentMethod || '')}</td><td class="n">${t.type === 'income' ? '' : '−'}${fmt(t.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Sin movimientos.</p>'}`;
+            printDoc(one ? `Resumen del día ${fmtDay(from)}` : `Resumen ${rangeLabel(from, to)}`, body);
+        }
+        function stylistKpis(r) {
+            return `<div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-2"><p class="text-[10px] font-bold text-slate-400 uppercase">Trabajos</p><p class="font-extrabold text-slate-800">${r.count}</p></div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-2"><p class="text-[10px] font-bold text-slate-400 uppercase">Vendió</p><p class="font-extrabold text-slate-800">${fmt(r.sales)}</p></div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2"><p class="text-[10px] font-bold text-emerald-700 uppercase">Comisión</p><p class="font-extrabold text-emerald-600">${fmt(r.comm)}</p></div>
+            </div>`;
+        }
+        function stylistItemsHtml(r, one) {
+            return r.items.length ? r.items.slice().reverse().map(t => `<div class="flex justify-between gap-3 py-2 border-b border-slate-100 text-xs">
+                <div class="min-w-0"><p class="font-bold text-slate-800 truncate">${esc(txItem(t))}</p><p class="text-slate-400">${one ? '' : esc(fmtDayShort(t.date)) + ' · '}${txHour(t)}${txClient(t) ? ' · ' + esc(txClient(t)) : ''}${t.paymentMethod ? ' · ' + esc(PAY_LABEL[t.paymentMethod] || t.paymentMethod) : ''}</p></div>
+                <div class="text-right shrink-0"><p class="font-bold text-slate-700">${fmt(t.amount)}</p><p class="text-emerald-600 font-bold">${fmt(txComm(t))} <span class="text-slate-400 font-normal">(${txPct(t)}%)</span></p></div>
+            </div>`).join('') : '<p class="text-xs text-slate-400 py-6 text-center">Sin trabajos en este período.</p>';
+        }
+        function openStylistDetail(id, from, to) {
+            const r = stylistReport(from, to).rows.find(x => x.id === Number(id));
+            if (!r) return;
+            Swal.fire({
+                title: esc(r.name),
+                width: 560,
+                showCancelButton: true,
+                confirmButtonText: '🖨️ Imprimir resumen',
+                cancelButtonText: 'Cerrar',
+                confirmButtonColor: '#10b981',
+                html: `<div class="text-left"><p class="text-xs text-slate-400 mb-3 capitalize">${esc(rangeLabel(from, to))} · comisión ${r.pct}%</p>${stylistKpis(r)}<div class="max-h-[45vh] overflow-y-auto scrollbar-thin mt-3">${stylistItemsHtml(r, from === to)}</div></div>`
+            }).then(res => { if (res.isConfirmed) printStylist(id, from, to); });
+        }
+        function openDayDetail(date) {
+            const s = dayStats(date, date);
+            const cls = cashClosures.filter(c => c.date === date);
+            const row = (l, v, c = '') => `<div class="flex justify-between gap-3 py-1 ${c}"><span>${l}</span><span class="font-bold tabular-nums text-right">${v}</span></div>`;
+            const lbl = t => `<p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${t}</p>`;
+            const sty = s.rep.rows.filter(r => r.count).map(r => `<div class="flex justify-between items-center gap-2 py-2 border-b border-slate-100">
+                <div class="min-w-0"><p class="font-bold text-slate-800">${esc(r.name)}</p><p class="text-[11px] text-slate-400">${r.count} trabajo(s) · vendió ${fmt(r.sales)}</p></div>
+                <div class="flex items-center gap-2 shrink-0"><span class="font-extrabold text-emerald-600">${fmt(r.comm)}</span><button type="button" data-print-sty="${r.id}" title="Imprimir resumen de ${esc(r.name)}" class="text-xs border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-100">🖨️</button></div>
+            </div>`).join('') || '<p class="text-xs text-slate-400">Sin ventas asignadas a estilistas.</p>';
+            const mov = s.tx.slice().sort((a, b) => (txTime(b) || 0) - (txTime(a) || 0)).map(t => `<div class="flex justify-between gap-2 py-1.5 border-b border-slate-100 text-xs">
+                <span class="min-w-0"><span class="text-slate-400">${txHour(t)}</span> ${esc(txItem(t))}${t.stylistId ? ` · <span class="text-slate-500">${esc(stylistName(t.stylistId, t))}</span>` : ''}</span>
+                <span class="font-bold shrink-0 ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">${t.type === 'income' ? '+' : '−'}${fmt(t.amount)}</span></div>`).join('');
+            const caja = cls.map(c => row(`Cierre ${new Date(c.closedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`, `contado ${fmt(c.countedCash)} · ${c.diff ? (c.diff > 0 ? 'sobró ' : 'faltó ') + fmt(Math.abs(c.diff)) : 'sin diferencia'}`)).join('');
+            Swal.fire({
+                title: `<span class="capitalize">${esc(fmtDay(date))}</span>`,
+                width: 600,
+                showCancelButton: true,
+                confirmButtonText: '🖨️ Imprimir día',
+                cancelButtonText: 'Cerrar',
+                confirmButtonColor: '#10b981',
+                html: `<div class="text-left text-sm text-slate-600 space-y-4">
+                    <div>${row('Ventas', s.sales)}${row('Ingresos', fmt(s.income))}${row('Egresos', '−' + fmt(s.expense))}${row('Comisiones a estilistas', '−' + fmt(s.comm))}${row('💰 Ganancia del dueño', fmt(s.owner), 'border-t border-slate-200 mt-1 pt-2 text-emerald-600 text-base')}</div>
+                    <div>${lbl('Por estilista')}${sty}</div>
+                    ${caja ? `<div>${lbl('Arqueo de caja')}${caja}</div>` : ''}
+                    <div>${lbl('Movimientos')}<div class="max-h-56 overflow-y-auto scrollbar-thin">${mov || '<p class="text-xs text-slate-400">Sin movimientos.</p>'}</div></div>
+                </div>`,
+                didOpen: el => bindPrintBtns(el || Swal.getPopup(), date, date)
+            }).then(r => { if (r.isConfirmed) printDay(date, date); });
+        }
+        // Conecta los botones de imprimir / ver detalle dentro de un bloque
+        function bindPrintBtns(root, from, to) {
+            if (!root) return;
+            root.querySelectorAll('[data-print-sty]').forEach(b => b.onclick = e => { e.preventDefault(); printStylist(b.dataset.printSty, from, to); });
+            root.querySelectorAll('[data-print-all]').forEach(b => b.onclick = e => { e.preventDefault(); printAllStylists(from, to); });
+            root.querySelectorAll('[data-print-range]').forEach(b => b.onclick = e => { e.preventDefault(); printDay(from, to); });
+            root.querySelectorAll('[data-detail-sty]').forEach(b => b.onclick = e => { e.preventDefault(); openStylistDetail(b.dataset.detailSty, from, to); });
+            root.querySelectorAll('[data-print-day]').forEach(b => b.onclick = e => { e.preventDefault(); printDay(b.dataset.printDay); });
+            root.querySelectorAll('[data-day]').forEach(b => b.onclick = e => { e.preventDefault(); openDayDetail(b.dataset.day); });
+        }
+        function renderFinanceReports(container) {
+            const { from, to } = finRange;
+            const s = dayStats(from, to);
+            const kpi = (label, val) => `<div class="bg-white border border-slate-200/60 rounded-2xl p-4 shadow-sm"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${label}</p><p class="text-lg font-extrabold mt-1 tabular-nums text-slate-800">${val}</p></div>`;
+            const kp = document.getElementById('finKpis');
+            if (kp) kp.innerHTML = [
+                kpi('Ventas', s.sales),
+                kpi('Ingresos', `<span class="text-emerald-600">${fmt(s.income)}</span>`),
+                kpi('Egresos', `<span class="text-rose-600">−${fmt(s.expense)}</span>`),
+                kpi('Comisiones', `<span class="text-amber-600">−${fmt(s.comm)}</span>`),
+                `<div class="col-span-2 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm"><p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">💰 Ganancia del dueño</p><p class="text-2xl font-extrabold text-emerald-600 mt-1 tabular-nums">${fmt(s.owner)}</p><p class="text-[10px] text-slate-500">Ingresos − egresos − comisiones de estilistas</p></div>`
+            ].join('');
+
+            const rows = s.rep.rows;
+            const st = document.getElementById('finStylists');
+            const th = 'p-3 text-right';
+            if (st) st.innerHTML = rows.length || s.rep.unassigned.count ? `<div class="overflow-x-auto scrollbar-thin"><table class="min-w-full text-sm">
+                <thead class="bg-slate-50 border-b border-slate-100"><tr class="text-slate-400 font-semibold text-xs"><th class="p-3 text-left">Estilista</th><th class="${th}">Trabajos</th><th class="${th}">Vendió</th><th class="${th}">%</th><th class="${th}">Comisión</th><th class="${th}">Ticket prom.</th><th class="p-3"></th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                ${rows.map(r => `<tr class="hover:bg-slate-50/50">
+                    <td class="p-3"><button type="button" data-detail-sty="${r.id}" class="font-bold text-slate-800 hover:text-emerald-600 text-left">${esc(r.name)}</button>${r.role ? `<p class="text-[11px] text-slate-400">${esc(r.role)}</p>` : ''}</td>
+                    <td class="${th} tabular-nums">${r.count}</td>
+                    <td class="${th} font-bold text-slate-700 tabular-nums">${fmt(r.sales)}</td>
+                    <td class="${th} text-slate-500">${r.pct}%</td>
+                    <td class="${th} font-extrabold text-emerald-600 tabular-nums">${fmt(r.comm)}</td>
+                    <td class="${th} text-slate-500 tabular-nums">${fmt(r.count ? Math.round(r.sales / r.count) : 0)}</td>
+                    <td class="p-3 text-right whitespace-nowrap"><button type="button" data-detail-sty="${r.id}" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1">Detalle</button><button type="button" data-print-sty="${r.id}" class="text-xs font-bold border border-slate-200 rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100">🖨️ Imprimir</button></td>
+                </tr>`).join('')}
+                ${s.rep.unassigned.count ? `<tr><td class="p-3 text-slate-500">Sin estilista <span class="text-[11px] text-slate-400">(venta directa)</span></td><td class="${th} tabular-nums">${s.rep.unassigned.count}</td><td class="${th} tabular-nums text-slate-600">${fmt(s.rep.unassigned.sales)}</td><td class="${th} text-slate-400">—</td><td class="${th} text-slate-400">—</td><td></td><td></td></tr>` : ''}
+                </tbody>
+                <tfoot class="border-t-2 border-slate-200"><tr class="font-bold text-slate-800"><td class="p-3">Total</td><td class="${th}">${s.sales}</td><td class="${th}">${fmt(s.income)}</td><td></td><td class="${th} text-emerald-600">${fmt(s.comm)}</td><td></td><td></td></tr></tfoot>
+            </table></div>` : '<p class="text-xs text-slate-400 text-center py-8">Todavía no hay estilistas ni ventas. Cargá a tu equipo en <strong>Equipo y Comisiones</strong>.</p>';
+
+            const days = [...new Set([...transactions.map(t => t.date), ...cashClosures.map(c => c.date)])].filter(Boolean).sort().reverse();
+            const today = getTodayStr();
+            const dy = document.getElementById('finDays');
+            if (dy) dy.innerHTML = days.length ? `<div class="overflow-x-auto scrollbar-thin"><table class="min-w-full text-sm">
+                <thead class="bg-slate-50 border-b border-slate-100"><tr class="text-slate-400 font-semibold text-xs"><th class="p-3 text-left">Día</th><th class="${th}">Ventas</th><th class="${th}">Ingresos</th><th class="${th}">Egresos</th><th class="${th}">Comisiones</th><th class="${th}">Ganancia dueño</th><th class="p-3 text-left">Caja</th><th class="p-3"></th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                ${days.slice(0, finDaysShown).map(d => {
+                    const ds = dayStats(d, d);
+                    const cl = cashClosures.filter(c => c.date === d).pop();
+                    const caja = cl ? (cl.diff ? `<span class="text-amber-600 font-bold">${cl.diff > 0 ? 'Sobró' : 'Faltó'} ${fmt(Math.abs(cl.diff))}</span>` : '<span class="text-emerald-600 font-bold">✓ Cerrada</span>')
+                        : (d === today && cashOpen ? '<span class="text-blue-600 font-bold">Abierta</span>' : '<span class="text-slate-400">Sin cierre</span>');
+                    return `<tr class="hover:bg-slate-50/50">
+                        <td class="p-3 whitespace-nowrap"><button type="button" data-day="${d}" class="font-bold text-slate-800 hover:text-emerald-600 capitalize">${esc(fmtDay(d))}</button></td>
+                        <td class="${th} tabular-nums">${ds.sales}</td>
+                        <td class="${th} tabular-nums text-emerald-600 font-bold">${fmt(ds.income)}</td>
+                        <td class="${th} tabular-nums text-rose-600">${ds.expense ? '−' + fmt(ds.expense) : '—'}</td>
+                        <td class="${th} tabular-nums text-amber-600">${ds.comm ? '−' + fmt(ds.comm) : '—'}</td>
+                        <td class="${th} tabular-nums font-extrabold text-slate-800">${fmt(ds.owner)}</td>
+                        <td class="p-3 text-xs whitespace-nowrap">${caja}</td>
+                        <td class="p-3 text-right whitespace-nowrap"><button type="button" data-day="${d}" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1">Ver</button><button type="button" data-print-day="${d}" title="Imprimir el día" class="text-xs border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-100">🖨️</button></td>
+                    </tr>`;
+                }).join('')}
+                </tbody></table></div>
+                ${days.length > finDaysShown ? `<button type="button" id="finMoreDays" class="mt-3 w-full text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl py-2">Mostrar días anteriores (${days.length - finDaysShown} más)</button>` : ''}`
+                : '<p class="text-xs text-slate-400 text-center py-8">Todavía no hay movimientos registrados.</p>';
+
+            container.querySelectorAll('[data-frange]').forEach(b => b.onclick = () => { setFinRange(b.dataset.frange); renderFinancePanel(container); });
+            const onDate = () => {
+                const f = document.getElementById('finFrom').value, t = document.getElementById('finTo').value;
+                if (f && t) { setFinRange('custom', f, t); renderFinancePanel(container); }
+            };
+            const fF = document.getElementById('finFrom'), fT = document.getElementById('finTo');
+            if (fF) fF.onchange = onDate;
+            if (fT) fT.onchange = onDate;
+            const more = document.getElementById('finMoreDays');
+            if (more) more.onclick = () => { finDaysShown += 31; renderFinanceReports(container); };
+            bindPrintBtns(container, from, to);
+        }
+
         function openAuthModal(modalId) {
             document.getElementById(modalId)?.classList.remove('hidden');
             document.getElementById(modalId)?.classList.add('flex');
@@ -755,6 +1037,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         function renderPOSPanel(container) {
             const { income, expense } = getTodayIncomeExpense();
             const methodTotals = getTodayIncomeByMethod();
+            const todayRep = stylistReport(getTodayStr(), getTodayStr());
+            const todayRows = todayRep.rows.filter(r => r.count);
+            const todayComm = Math.round(todayRep.rows.reduce((a, r) => a + r.comm, 0) * 100) / 100;
 
             container.innerHTML = `
                 <div class="grid lg:grid-cols-3 gap-6">
@@ -798,6 +1083,13 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             <p class="text-[10px] font-bold text-emerald-400 tracking-wider uppercase">BALANCE DIARIO NETO</p>
                             <h3 class="text-4xl font-extrabold mt-1">${fmt(income - expense)}</h3>
                             <p class="text-[10px] text-slate-300 mt-1">(ventas cobradas menos egresos del día)</p>
+                            <div class="mt-4 bg-white/10 border border-white/10 rounded-xl p-3 flex justify-between items-center gap-3">
+                                <div>
+                                    <p class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">💰 Ganancia del dueño</p>
+                                    <p class="text-[10px] text-slate-300">después de pagar ${fmt(todayComm)} de comisiones</p>
+                                </div>
+                                <span class="text-xl font-extrabold text-emerald-300 tabular-nums">${fmt(income - expense - todayComm)}</span>
+                            </div>
 
                             <div class="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-white/10">
                                 <div>
@@ -836,6 +1128,28 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             <button id="addExpenseBtn" class="mt-6 w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs transition shadow-md">
                                 💸 Registrar Gasto Directo (Egreso)
                             </button>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm">
+                            <div class="flex justify-between items-center mb-2 gap-2">
+                                <h3 class="font-bold text-slate-800 text-sm">✂️ Hoy por estilista</h3>
+                                ${todayRows.length ? '<button type="button" data-print-all class="text-xs font-bold text-emerald-600 hover:underline">🖨️ Imprimir todos</button>' : ''}
+                            </div>
+                            ${todayRows.length ? todayRows.map(r => `
+                                <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-100">
+                                    <button type="button" data-detail-sty="${r.id}" class="text-left min-w-0">
+                                        <p class="font-bold text-slate-800 text-sm truncate">${esc(r.name)}</p>
+                                        <p class="text-[11px] text-slate-400">${r.count} trabajo${r.count === 1 ? '' : 's'} · vendió ${fmt(r.sales)}</p>
+                                    </button>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <div class="text-right">
+                                            <p class="text-[10px] text-slate-400 uppercase font-bold">Comisión</p>
+                                            <p class="font-extrabold text-emerald-600 text-sm tabular-nums">${fmt(r.comm)}</p>
+                                        </div>
+                                        <button type="button" data-print-sty="${r.id}" title="Imprimir resumen de ${esc(r.name)}" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100">🖨️</button>
+                                    </div>
+                                </div>`).join('') + `<div class="flex justify-between pt-2 text-xs"><span class="text-slate-500">Total comisiones</span><span class="font-extrabold text-slate-800">${fmt(todayComm)}</span></div>` : '<p class="text-xs text-slate-400 py-3">Todavía no hay ventas asignadas a estilistas hoy.</p>'}
+                            <p class="text-[10px] text-slate-400 mt-2">Historial de días anteriores en <strong>Finanzas</strong>.</p>
                         </div>
                     </div>
                 </div>
@@ -947,12 +1261,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
 
                 transactions.push({
                     id: Date.now(),
+                    ts: Date.now(),
                     type: 'income',
                     desc: profitLog,
+                    item: prod.name,
                     amount: prod.price,
                     date: getTodayStr(),
                     paymentMethod: paymentMethod,
-                    stylistId: stylistId
+                    stylistId: stylistId,
+                    ...stampStylist(stylistId)
                 });
 
                 saveBusinessData();
@@ -962,6 +1279,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             }
 
             refreshGrid();
+            bindPrintBtns(container, getTodayStr(), getTodayStr());
 
             document.getElementById('toggleCashBtn')?.addEventListener('click', async () => {
                 if (!cashOpen) {
@@ -984,11 +1302,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 const { income, expense } = getTodayIncomeExpense();
                 const byMethod = getTodayIncomeByMethod();
                 const salesCount = transactions.filter(t => t.date === today && t.type === 'income').length;
-                const commRows = staff.map(m => {
-                    const vol = transactions.filter(t => t.date === today && t.type === 'income' && t.stylistId === m.id).reduce((a, t) => a + t.amount, 0);
-                    return { name: m.name, vol, comm: vol * m.commissionPct / 100 };
-                }).filter(r => r.vol > 0);
-                const totalComm = commRows.reduce((a, r) => a + r.comm, 0);
+                const rep = stylistReport(today, today);
+                const commRows = rep.rows.filter(r => r.count);
+                const totalComm = Math.round(commRows.reduce((a, r) => a + r.comm, 0) * 100) / 100;
+                const ownerProfit = Math.round((income - expense - totalComm) * 100) / 100;
                 const row = (label, value, cls = '') => `<div class="flex justify-between py-1 ${cls}"><span>${label}</span><span class="font-bold tabular-nums">${value}</span></div>`;
 
                 const result = await Swal.fire({
@@ -996,8 +1313,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     confirmButtonText: 'Cerrar caja',
                     cancelButtonText: 'Seguir operando',
                     showCancelButton: true,
-                    confirmButtonColor: '#0f172a',
-                    width: 520,
+                    confirmButtonColor: '#10b981',
+                    width: 560,
+                    didOpen: (el) => bindPrintBtns(el || Swal.getPopup(), today, today),
                     html: `
                         <div class="text-left text-sm text-slate-600 space-y-4">
                             <div>
@@ -1005,6 +1323,16 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 ${row('Ingresos', fmt(income))}
                                 ${row('Egresos', '−' + fmt(expense))}
                                 ${row('Neto del día', fmt(income - expense), 'border-t border-slate-200 mt-1 pt-2 text-slate-800')}
+                                ${row('Comisiones a estilistas', '−' + fmt(totalComm))}
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                                <div class="flex justify-between items-center gap-3">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">💰 Ganancia del dueño hoy</p>
+                                        <p class="text-[11px] text-slate-500">Ingresos − egresos − comisiones</p>
+                                    </div>
+                                    <span class="text-2xl font-extrabold text-emerald-600 tabular-nums">${fmt(ownerProfit)}</span>
+                                </div>
                             </div>
                             <div>
                                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Neto por método</p>
@@ -1014,8 +1342,25 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 ${row('Otros', fmt(byMethod.otros))}
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Comisiones a liquidar</p>
-                                ${commRows.length ? commRows.map(r => row(esc(r.name) + ` <span class="text-slate-400">(ventas ${fmt(r.vol)})</span>`, fmt(r.comm))).join('') + row('Total comisiones', fmt(totalComm), 'border-t border-slate-200 mt-1 pt-2 text-slate-800') : '<p class="text-xs text-slate-400">Sin ventas asignadas a estilistas hoy.</p>'}
+                                <div class="flex justify-between items-center mb-2 gap-2">
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ventas y comisión por estilista</p>
+                                    ${commRows.length ? '<button type="button" data-print-all class="text-xs font-bold text-emerald-600 hover:underline">🖨️ Imprimir todos</button>' : ''}
+                                </div>
+                                ${commRows.length ? commRows.map(r => `
+                                    <div class="border border-slate-200 rounded-xl p-3 mb-2">
+                                        <div class="flex justify-between items-start gap-2">
+                                            <div class="min-w-0">
+                                                <p class="font-bold text-slate-800 text-base">${esc(r.name)}</p>
+                                                <p class="text-[11px] text-slate-400">${r.count} trabajo${r.count === 1 ? '' : 's'} · comisión ${r.pct}%</p>
+                                            </div>
+                                            <button type="button" data-print-sty="${r.id}" class="shrink-0 text-xs font-bold border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 hover:bg-slate-100">🖨️ Imprimir</button>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 mt-2">
+                                            <div><p class="text-[10px] uppercase text-slate-400 font-bold">Vendió</p><p class="font-extrabold text-slate-800 text-lg tabular-nums">${fmt(r.sales)}</p></div>
+                                            <div class="text-right"><p class="text-[10px] uppercase text-emerald-700 font-bold">Le corresponde</p><p class="font-extrabold text-emerald-600 text-lg tabular-nums">${fmt(r.comm)}</p></div>
+                                        </div>
+                                        <details class="mt-1"><summary class="text-[11px] font-semibold text-slate-500 cursor-pointer">Ver trabajos</summary>${stylistItemsHtml(r, true)}</details>
+                                    </div>`).join('') + (rep.unassigned.count ? row(`Sin estilista <span class="text-slate-400">(${rep.unassigned.count} venta${rep.unassigned.count === 1 ? '' : 's'})</span>`, fmt(rep.unassigned.sales)) : '') + row('Total comisiones a pagar', fmt(totalComm), 'border-t border-slate-200 mt-1 pt-2 text-slate-800') : '<p class="text-xs text-slate-400">Sin ventas asignadas a estilistas hoy.</p>'}
                             </div>
                             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
                                 <label for="countedCash" class="block text-xs font-bold text-slate-500 mb-1">EFECTIVO CONTADO EN CAJA</label>
@@ -1046,7 +1391,11 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     expectedCash: byMethod.efectivo,
                     countedCash: counted,
                     diff,
-                    commissions: totalComm
+                    commissions: totalComm,
+                    ownerProfit,
+                    salesCount,
+                    byMethod,
+                    byStylist: commRows.map(r => ({ id: r.id, name: r.name, count: r.count, sales: r.sales, pct: r.pct, comm: r.comm }))
                 });
                 cashOpen = false;
                 saveBusinessData();
@@ -1058,8 +1407,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     html: diff === 0
                         ? `El efectivo coincide: ${fmt(counted)}.`
                         : `Esperado ${fmt(byMethod.efectivo)}, contado ${fmt(counted)}.<br><strong>${diff > 0 ? 'Sobrante' : 'Faltante'}: ${fmt(Math.abs(diff))}</strong>`,
-                    confirmButtonColor: '#10b981'
-                });
+                    footer: `Ganancia del dueño hoy: <strong>&nbsp;${fmt(ownerProfit)}</strong>`,
+                    confirmButtonColor: '#10b981',
+                    showDenyButton: true,
+                    denyButtonText: '🖨️ Imprimir cierre',
+                    denyButtonColor: '#334155'
+                }).then(r => { if (r && r.isDenied) printDay(today); });
             });
 
             document.getElementById('addExpenseBtn')?.addEventListener('click', async () => {
@@ -1092,7 +1445,9 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     transactions.push({
                         id: Date.now(),
                         type: 'expense',
+                        ts: Date.now(),
                         desc: `Egreso: ${form.desc}`,
+                        item: form.desc,
                         amount: form.amount,
                         date: getTodayStr(),
                         paymentMethod: form.method
@@ -1112,7 +1467,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
                         <div>
                             <h2 class="text-lg font-bold text-slate-800">👥 Equipo y Comisiones</h2>
-                            <p class="text-xs text-slate-400">Asigna comisiones a tus profesionales por servicios POS de hoy.</p>
+                            <p class="text-xs text-slate-400">Ventas y comisión de hoy de cada profesional. Tocá 📄 para ver el detalle o 🖨️ para imprimir.</p>
                         </div>
                         <button id="addStaffBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-4 py-2 rounded-xl font-bold transition">
                             ➕ Registrar Nuevo Colaborador
@@ -1127,7 +1482,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                     <th class="p-3.5 text-left">Especialidad / Rol</th>
                                     <th class="p-3.5 text-left">Comisión (%)</th>
                                     <th class="p-3.5 text-left">Ventas de Hoy</th>
-                                    <th class="p-3.5 text-left">Comisión Acumulada</th>
+                                    <th class="p-3.5 text-left">Comisión de hoy</th>
                                     <th class="p-3.5 text-left">Acciones</th>
                                 </tr>
                             </thead>
@@ -1144,15 +1499,16 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 if (!tbody) return;
 
                 const today = getTodayStr();
+                const rep = stylistReport(today, today);
 
                 if (staff.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400 text-xs">Todavía no cargaste profesionales. Agregá a tu equipo con su porcentaje de comisión.</td></tr>`;
                     return;
                 }
                 tbody.innerHTML = staff.map(member => {
-                    const memberSales = transactions.filter(t => t.date === today && t.type === 'income' && t.stylistId === member.id);
-                    const totalVolume = memberSales.reduce((sum, current) => sum + current.amount, 0);
-                    const totalCommission = (totalVolume * (member.commissionPct / 100)).toFixed(2);
+                    const mr = rep.rows.find(x => x.id === Number(member.id)) || { sales: 0, comm: 0, count: 0 };
+                    const totalVolume = mr.sales;
+                    const totalCommission = mr.comm;
 
                     return `
                         <tr class="hover:bg-slate-50/50 transition">
@@ -1166,7 +1522,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                             <td class="p-3.5 font-bold text-slate-700">${fmt(totalVolume)}</td>
                             <td class="p-3.5 font-extrabold text-emerald-600">${fmt(totalCommission)}</td>
                             <td class="p-3.5">
-                                <button onclick="deleteStaffMember(${member.id})" class="text-rose-500 hover:text-rose-700 p-2 transition">
+                                <button onclick="openStylistDetail(${member.id}, getTodayStr(), getTodayStr())" title="Ver detalle de hoy" class="text-slate-500 hover:text-slate-800 p-2 transition"><i class="fas fa-file-lines"></i></button>
+                                <button onclick="printStylist(${member.id}, getTodayStr(), getTodayStr())" title="Imprimir resumen de hoy" class="text-slate-500 hover:text-slate-800 p-2 transition"><i class="fas fa-print"></i></button>
+                                <button onclick="editStaffMember(${member.id})" title="Editar nombre, rol o comisión" class="text-slate-500 hover:text-slate-800 p-2 transition"><i class="fas fa-pen"></i></button>
+                                <button onclick="deleteStaffMember(${member.id})" title="Dar de baja" class="text-rose-500 hover:text-rose-700 p-2 transition">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>
@@ -1186,12 +1545,46 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     cancelButtonText: 'Cancelar'
                 }).then(res => {
                     if (res.isConfirmed) {
+                        stampStaffHistory(id);
                         staff = staff.filter(member => member.id !== id);
                         saveBusinessData();
                         refreshStaffTable();
                         Swal.fire('Equipo Actualizado', 'El profesional ha sido dado de baja en el sistema.', 'success');
                     }
                 });
+            };
+
+            window.editStaffMember = async (id) => {
+                const m = staff.find(s => s.id === id);
+                if (!m) return;
+                const { value: form } = await Swal.fire({
+                    title: 'Editar profesional',
+                    html: `
+                        <input id="edStaffName" class="swal2-input" placeholder="Nombre completo" value="${esc(m.name)}">
+                        <input id="edStaffRole" class="swal2-input" placeholder="Rol (Ej: Colorista / Barbero)" value="${esc(m.role || '')}">
+                        <input id="edStaffComm" type="number" min="0" max="100" step="0.5" class="swal2-input" placeholder="Comisión %" value="${Number(m.commissionPct) || 0}">
+                        <p class="text-xs text-slate-400 mt-2">Si cambiás el %, las ventas ya registradas mantienen el % que tenían.</p>
+                    `,
+                    confirmButtonColor: '#10b981',
+                    confirmButtonText: 'Guardar',
+                    cancelButtonText: 'Cancelar',
+                    showCancelButton: true,
+                    preConfirm: () => {
+                        const name = document.getElementById('edStaffName').value.trim();
+                        const pct = parseFloat(document.getElementById('edStaffComm').value);
+                        if (!name) { Swal.showValidationMessage('Escribí el nombre.'); return false; }
+                        if (isNaN(pct) || pct < 0 || pct > 100) { Swal.showValidationMessage('La comisión tiene que ser entre 0 y 100.'); return false; }
+                        return { name, role: document.getElementById('edStaffRole').value.trim(), pct };
+                    }
+                });
+                if (!form) return;
+                stampStaffHistory(id);
+                m.name = form.name;
+                m.role = form.role;
+                m.commissionPct = form.pct;
+                saveBusinessData();
+                refreshStaffTable();
+                Swal.fire({ title: 'Guardado', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 1800 });
             };
 
             refreshStaffTable();
@@ -1471,7 +1864,45 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
         }
 
         function renderFinancePanel(container) {
+            setFinRange(finRange ? finRange.key : 'today', finRange && finRange.from, finRange && finRange.to);
+            const RANGES = [['today', 'Hoy'], ['yesterday', 'Ayer'], ['week', '7 días'], ['month', 'Este mes'], ['lastmonth', 'Mes pasado']];
             container.innerHTML = `
+                <div class="space-y-6">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Período</span>
+                        ${RANGES.map(([k, l]) => `<button type="button" data-frange="${k}" class="px-3 py-1.5 rounded-full text-xs font-bold border transition ${finRange.key === k ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-200 text-slate-600 hover:bg-slate-100'}">${l}</button>`).join('')}
+                        <span class="flex items-center gap-1 text-xs text-slate-500 sm:ml-auto">
+                            <input type="date" id="finFrom" value="${finRange.from}" aria-label="Desde" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                            a
+                            <input type="date" id="finTo" value="${finRange.to}" aria-label="Hasta" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2 capitalize">${esc(rangeLabel(finRange.from, finRange.to))}</p>
+                </div>
+
+                <div id="finKpis" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">✂️ Ventas y comisiones por estilista</h3>
+                            <p class="text-xs text-slate-400">Cuánto vendió cada uno en el período y cuánto le corresponde. Tocá un nombre para ver cada trabajo.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" data-print-all class="text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100">🖨️ Imprimir liquidaciones</button>
+                            <button type="button" data-print-range class="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl px-3 py-2">🖨️ Imprimir resumen</button>
+                        </div>
+                    </div>
+                    <div id="finStylists"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
+                    <h3 class="font-bold text-slate-800 text-base mb-1">📅 Historial diario de caja</h3>
+                    <p class="text-xs text-slate-400 mb-4">Un renglón por día con lo vendido, las comisiones y la ganancia del dueño. Tocá un día para ver todo el detalle.</p>
+                    <div id="finDays"></div>
+                </div>
+
                 <div class="grid md:grid-cols-3 gap-6">
                     <!-- Gráfica de Rendimiento Semanal -->
                     <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
@@ -1489,15 +1920,17 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
 
                     <!-- Bitácora de Transacciones Diarias -->
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col">
-                        <h3 class="font-bold text-slate-800 text-base mb-1">📜 Historial de Movimientos</h3>
-                        <p class="text-xs text-slate-400 mb-4">Registro continuo de cobros y gastos.</p>
+                        <h3 class="font-bold text-slate-800 text-base mb-1">📜 Movimientos del período</h3>
+                        <p class="text-xs text-slate-400 mb-4">Cobros y gastos, del más nuevo al más viejo.</p>
                         
                         <div id="transactionsListFinance" class="space-y-3 max-h-[250px] overflow-y-auto scrollbar-thin pr-2">
                             <!-- Inyectado dinámicamente -->
                         </div>
                     </div>
                 </div>
+                </div>
             `;
+            renderFinanceReports(container);
 
             function renderTransactions() {
                 const listDiv = document.getElementById('transactionsListFinance');
@@ -1508,7 +1941,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     return;
                 }
 
-                listDiv.innerHTML = [...transactions].reverse().map(t => {
+                const txr = transactions.filter(t => t.date >= finRange.from && t.date <= finRange.to);
+                if (!txr.length) {
+                    listDiv.innerHTML = `<p class="text-xs text-slate-400 text-center py-10">Sin movimientos en este período.</p>`;
+                    return;
+                }
+                listDiv.innerHTML = [...txr].reverse().map(t => {
                     const isIncome = t.type === 'income';
                     let badge = '';
                     if (isIncome && t.paymentMethod) {
@@ -1518,9 +1956,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                     return `
                         <div class="p-3 bg-slate-50 hover:bg-slate-100/50 rounded-xl border border-slate-100 flex items-center justify-between text-xs transition">
                             <div class="space-y-1 pr-2">
-                                <p class="font-bold text-slate-800 line-clamp-1">${esc(t.desc)}</p>
+                                <p class="font-bold text-slate-800 line-clamp-1">${esc((isIncome ? '' : 'Gasto: ') + txItem(t))}${txClient(t) ? ` <span class="font-normal text-slate-400">· ${esc(txClient(t))}</span>` : ''}</p>
                                 <div class="flex items-center gap-1.5 flex-wrap">
-                                    <span class="text-slate-400 font-semibold text-[10px]">${t.date}</span>
+                                    <span class="text-slate-400 font-semibold text-[10px]">${fmtDayShort(t.date)} ${txHour(t)}</span>
+                                    ${t.stylistId ? `<span class="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">${esc(stylistName(t.stylistId, t))} · ${fmt(txComm(t))}</span>` : ''}
                                     ${badge}
                                 </div>
                             </div>
@@ -3803,11 +4242,15 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         transactions.push({
                             id: Date.now(),
                             type: 'income',
+                            ts: Date.now(),
                             desc: transactionDesc,
+                            item: appo.service,
+                            client: appo.clientName,
                             amount: result.value.price,
                             date: getTodayStr(),
                             paymentMethod: result.value.method,
-                            stylistId: result.value.stylistId
+                            stylistId: result.value.stylistId,
+                            ...stampStylist(result.value.stylistId)
                         });
 
                         let itemsTotal = 0;
@@ -3819,7 +4262,10 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 transactions.push({
                                     id: Date.now() + 1 + k,
                                     type: 'income',
+                                    ts: Date.now(),
                                     desc: `Venta: ${x.qty} × ${x.name} (pedido de ${appo.clientName})`,
+                                    item: `${x.qty} × ${x.name}`,
+                                    client: appo.clientName,
                                     amount: x.price * x.qty,
                                     date: getTodayStr(),
                                     paymentMethod: result.value.method,
