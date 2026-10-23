@@ -302,6 +302,34 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             const [h, m] = String(v || '').split(':').map(Number);
             return (isNaN(h) || isNaN(m)) ? null : h * 60 + m;
         }
+        // Franjas horarias del local: mañana, tarde y noche (los turnos se ofrecen cada media hora)
+        const SHIFT_ICON = { m: '🌅', t: '☀️', n: '🌙' };
+        function getShifts(cfg) {
+            const c = cfg || {};
+            if (Array.isArray(c.shifts) && c.shifts.length) {
+                return c.shifts.map(x => ({ key: x.key, name: x.name || ({ m: 'Mañana', t: 'Tarde', n: 'Noche' })[x.key] || 'Horario', on: x.on !== false, from: Number(x.from) || 0, to: Number(x.to) || 0 }));
+            }
+            // Datos viejos con un solo horario corrido: se reparte en franjas sin cambiar los horarios
+            const o = Number.isFinite(c.openMin) ? c.openMin : 540;
+            const cl = Number.isFinite(c.closeMin) ? c.closeMin : 1200;
+            const cut = (a, b, def) => Math.min(cl, b) > Math.max(o, a) ? { on: true, from: Math.max(o, a), to: Math.min(cl, b) } : { on: false, from: def[0], to: def[1] };
+            return [
+                { key: 'm', name: 'Mañana', ...cut(0, 780, [540, 780]) },
+                { key: 't', name: 'Tarde', ...cut(780, 1200, [900, 1200]) },
+                { key: 'n', name: 'Noche', ...cut(1200, 1440, [1200, 1380]) }
+            ];
+        }
+        function activeShifts(cfg) { return getShifts(cfg).filter(s => s.on && s.to > s.from).sort((a, b) => a.from - b.from); }
+        function fmtShifts(cfg) {
+            const a = activeShifts(cfg);
+            return a.length ? a.map(s => `${s.name} ${minToHHMM(s.from)} a ${minToHHMM(s.to)} h`).join(' · ') : 'Sin horarios cargados';
+        }
+        function shiftTimeOpts(sel, isEnd) {
+            let h = '';
+            for (let m = isEnd ? 30 : 0; m <= (isEnd ? 1440 : 1410); m += SLOT_STEP) h += `<option value="${m}" ${m === sel ? 'selected' : ''}>${minToHHMM(m)}</option>`;
+            return h;
+        }
+
         // "Lun a Sáb" o "Lun, Mié, Vie"
         function fmtDays(days) {
             const order = [1, 2, 3, 4, 5, 6, 0].filter(d => days.includes(d));
@@ -359,8 +387,8 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             if (start < new Date()) return 'Elegí una fecha y hora futura.';
             if (!cfg.days.includes(start.getDay())) return `El local no atiende los ${DAY_LONG[start.getDay()]}.`;
             const s = start.getHours() * 60 + start.getMinutes();
-            if (s < cfg.openMin || s + duration > cfg.closeMin) {
-                return `El local atiende de ${minToHHMM(cfg.openMin)} a ${minToHHMM(cfg.closeMin)}. Este servicio dura ${duration} min y tiene que terminar antes del cierre.`;
+            if (!activeShifts(cfg).some(sh => s >= sh.from && s + duration <= sh.to)) {
+                return `El local atiende ${fmtShifts(cfg)}. Este servicio dura ${duration} min y tiene que empezar y terminar dentro de una de esas franjas.`;
             }
             if (apps) {
                 const startMin = Math.round(start.getTime() / 60000);
@@ -721,7 +749,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             products = (c.services || []).map(x => ({ id: id++, name: x.name, price: x.price, type: 'service', stock: 0, duration: x.duration || DEFAULT_DURATION }))
                 .concat((c.products || []).map(x => ({ id: id++, name: x.name, price: x.price, type: 'product', stock: x.inStock ? 1 : 0 })));
             staff = (c.staff || []).map(x => ({ id: x.id, name: x.name, role: x.role, commissionPct: 0 }));
-            settings = { ...settings, whatsapp: c.whatsapp || '', address: c.address || '', openMin: c.openMin ?? settings.openMin, closeMin: c.closeMin ?? settings.closeMin,
+            settings = { ...settings, whatsapp: c.whatsapp || '', address: c.address || '', openMin: c.openMin ?? settings.openMin, closeMin: c.closeMin ?? settings.closeMin, shifts: c.shifts || settings.shifts,
                 days: c.days || settings.days, note: c.note || '', codeSalt: c.codeSalt || settings.codeSalt, membersRev: c.membersRev || 0,
                 legacyMembers: c.members || [], nextMemberNo: (c.members || []).length + 1 };
             saveBusinessData();
@@ -2069,6 +2097,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 address: settings.address,
                 openMin: settings.openMin,
                 closeMin: settings.closeMin,
+                shifts: getShifts(settings),
                 days: settings.days,
                 note: settings.note,
                 services: products.filter(p => p.type === 'service').map(p => ({ name: p.name, price: p.price, duration: p.duration || DEFAULT_DURATION })),
@@ -2759,13 +2788,23 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 <label for="cfgAddress" class="block text-xs font-bold text-slate-500 mb-1">DIRECCIÓN (OPCIONAL)</label>
                                 <input id="cfgAddress" type="text" placeholder="Av. Corrientes 1234, CABA" value="${esc(settings.address)}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
                             </div>
-                            <div>
-                                <label for="cfgOpen" class="block text-xs font-bold text-slate-500 mb-1">ABRE</label>
-                                <input id="cfgOpen" type="time" step="1800" value="${minToHHMM(settings.openMin)}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
-                            </div>
-                            <div>
-                                <label for="cfgClose" class="block text-xs font-bold text-slate-500 mb-1">CIERRA</label>
-                                <input id="cfgClose" type="time" step="1800" value="${minToHHMM(settings.closeMin)}" class="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500">
+                            <div class="sm:col-span-2">
+                                <span class="block text-xs font-bold text-slate-500 mb-1.5">FRANJAS HORARIAS PARA TURNOS (CADA MEDIA HORA)</span>
+                                <div class="space-y-2">
+                                    ${getShifts(settings).map(sh => `
+                                    <div class="flex flex-wrap items-center gap-2 border border-slate-200 rounded-xl p-2.5 ${sh.on ? '' : 'bg-slate-50'}" data-shift-row="${sh.key}">
+                                        <label class="flex items-center gap-2 w-28 shrink-0 text-sm font-bold text-slate-700 cursor-pointer">
+                                            <input type="checkbox" class="cfgShiftOn w-4 h-4 accent-emerald-500" data-k="${sh.key}" ${sh.on ? 'checked' : ''}>
+                                            <span>${SHIFT_ICON[sh.key] || '🕒'} ${esc(sh.name)}</span>
+                                        </label>
+                                        <span class="text-xs text-slate-400">de</span>
+                                        <select class="cfgShiftFrom border border-slate-200 rounded-lg p-2 text-sm tabular-nums focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500 disabled:opacity-40" data-k="${sh.key}" aria-label="${esc(sh.name)}: desde" ${sh.on ? '' : 'disabled'}>${shiftTimeOpts(sh.from, false)}</select>
+                                        <span class="text-xs text-slate-400">a</span>
+                                        <select class="cfgShiftTo border border-slate-200 rounded-lg p-2 text-sm tabular-nums focus:ring-2 focus:ring-emerald-500/20 focus:outline-none focus:border-emerald-500 disabled:opacity-40" data-k="${sh.key}" aria-label="${esc(sh.name)}: hasta" ${sh.on ? '' : 'disabled'}>${shiftTimeOpts(sh.to, true)}</select>
+                                        <span class="text-xs text-slate-400">h</span>
+                                    </div>`).join('')}
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-1">Tildá las franjas en las que atendés y elegí de qué hora a qué hora. Los clientes ven turnos cada 30 minutos dentro de cada franja.</p>
                             </div>
                             <div class="sm:col-span-2">
                                 <span class="block text-xs font-bold text-slate-500 mb-1.5">DÍAS DE ATENCIÓN</span>
@@ -2810,11 +2849,24 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
 
             function readForm() {
                 const wa = document.getElementById('cfgWhatsapp').value.replace(/\D/g, '');
-                const openMin = hhmmToMin(document.getElementById('cfgOpen').value);
-                const closeMin = hhmmToMin(document.getElementById('cfgClose').value);
+                const shifts = getShifts(settings).map(sh => ({
+                    key: sh.key,
+                    name: sh.name,
+                    on: !!document.querySelector(`.cfgShiftOn[data-k="${sh.key}"]`)?.checked,
+                    from: parseInt(document.querySelector(`.cfgShiftFrom[data-k="${sh.key}"]`)?.value),
+                    to: parseInt(document.querySelector(`.cfgShiftTo[data-k="${sh.key}"]`)?.value)
+                }));
+                const act = shifts.filter(s => s.on).sort((a, b) => a.from - b.from);
                 const days = [...document.querySelectorAll('.cfgDay')].filter(c => c.checked).map(c => parseInt(c.value));
                 if (wa && (wa.length < 10 || wa.length > 15)) return { error: 'El WhatsApp tiene que tener entre 10 y 15 números, con código de país.' };
-                if (openMin === null || closeMin === null || closeMin <= openMin) return { error: 'El horario de cierre tiene que ser posterior al de apertura.' };
+                if (!act.length) return { error: 'Activá al menos una franja horaria (mañana, tarde o noche).' };
+                const badShift = act.find(s => isNaN(s.from) || isNaN(s.to) || s.to <= s.from);
+                if (badShift) return { error: `En ${badShift.name}, la hora de fin tiene que ser posterior a la de inicio.` };
+                for (let i = 1; i < act.length; i++) {
+                    if (act[i].from < act[i - 1].to) return { error: `${act[i - 1].name} y ${act[i].name} se superponen. Ajustá los horarios.` };
+                }
+                const openMin = act[0].from;
+                const closeMin = Math.max(...act.map(s => s.to));
                 if (!days.length) return { error: 'Elegí al menos un día de atención.' };
                 return {
                     value: {
@@ -2822,7 +2874,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         pageLink: document.getElementById('cfgPageLink').value.trim(),
                         whatsapp: wa,
                         address: document.getElementById('cfgAddress').value.trim(),
-                        openMin, closeMin, days,
+                        openMin, closeMin, shifts, days,
                         note: document.getElementById('cfgNote').value.trim()
                     }
                 };
@@ -2834,6 +2886,13 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 saveBusinessData();
                 return true;
             }
+
+            // Franjas: al destildar una, sus horarios se apagan
+            document.querySelectorAll('.cfgShiftOn').forEach(cb => cb.addEventListener('change', () => {
+                const row = document.querySelector(`[data-shift-row="${cb.dataset.k}"]`);
+                row?.classList.toggle('bg-slate-50', !cb.checked);
+                row?.querySelectorAll('select').forEach(s => { s.disabled = !cb.checked; });
+            }));
 
             // Logo: se recorta cuadrado y se achica para que la página cargue rápido
             document.getElementById('cfgLogo').addEventListener('change', e => {
@@ -2974,7 +3033,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                                 <h1 class="min-w-0 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900" style="text-wrap: balance">${esc(cat.salonName)}</h1>
                             </div>
                             <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
-                                <span><i class="far fa-calendar text-emerald-500 mr-1.5"></i>${fmtDays(cat.days)} · ${minToHHMM(cat.openMin)} a ${minToHHMM(cat.closeMin)} h</span>
+                                <span><i class="far fa-calendar text-emerald-500 mr-1.5"></i>${fmtDays(cat.days)} · ${fmtShifts(cat)}</span>
                                 ${cat.address ? `<span><i class="fas fa-location-dot text-emerald-500 mr-1.5"></i>${esc(cat.address)}</span>` : ''}
                                 ${waDisplay ? `<span><i class="fab fa-whatsapp text-emerald-500 mr-1.5"></i><span class="select-all tabular-nums">${esc(waDisplay)}</span></span>` : ''}
                             </div>
@@ -3124,18 +3183,23 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                 const blocks = (plainCodes ? agendaBlocks(appointments) : (cat.busy || [])).concat(myRequestBlocks());
                 const staffIds = cat.staff.map(m => m.id);
                 const now = new Date();
-                const opts = [];
-                for (let m = cat.openMin; m + dur <= cat.closeMin; m += SLOT_STEP) {
-                    const t = new Date(d); t.setHours(Math.floor(m / 60), m % 60, 0, 0);
-                    if (t > now && slotFree(Math.round(t.getTime() / 60000), dur, stylistId, blocks, staffIds)) opts.push(minToHHMM(m));
-                }
+                const groups = [];
+                activeShifts(cat).forEach(sh => {
+                    const g = [];
+                    for (let m = sh.from; m + dur <= sh.to; m += SLOT_STEP) {
+                        const t = new Date(d); t.setHours(Math.floor(m / 60), m % 60, 0, 0);
+                        if (t > now && slotFree(Math.round(t.getTime() / 60000), dur, stylistId, blocks, staffIds)) g.push(minToHHMM(m));
+                    }
+                    if (g.length) groups.push([sh.name, g]);
+                });
+                const opts = groups.flatMap(g => g[1]);
                 if (!opts.length) {
                     sel.innerHTML = '<option value="">Sin horarios libres</option>';
                     msg.textContent = 'Para ese día no quedan horarios libres para este servicio. Probá con otro día' + (cat.staff.length ? ' u otro profesional.' : '.');
                     msg.hidden = false;
                     return;
                 }
-                sel.innerHTML = '<option value="">Elegí un horario</option>' + opts.map(o => `<option value="${o}" ${o === prev ? 'selected' : ''}>${o} h</option>`).join('');
+                sel.innerHTML = '<option value="">Elegí un horario</option>' + groups.map(([n, g]) => `<optgroup label="${esc(n)}">${g.map(o => `<option value="${o}" ${o === prev ? 'selected' : ''}>${o} h</option>`).join('')}</optgroup>`).join('');
             }
 
             function current() {
