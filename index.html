@@ -4053,6 +4053,61 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             });
         }
 
+        // Editar días y franjas horarias desde la agenda
+        async function openHoursModal(after) {
+            const lbl = t => `<p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">${t}</p>`;
+            const dayBtns = [1, 2, 3, 4, 5, 6, 0].map(d => `<label class="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" class="agDay w-4 h-4 accent-emerald-500" value="${d}" ${settings.days.includes(d) ? 'checked' : ''}> ${DAY_SHORT[d]}</label>`).join('');
+            const rows = getShifts(settings).map(sh => `
+                <div class="flex flex-wrap items-center gap-2 border border-slate-200 rounded-xl p-2.5" data-ag-row="${sh.key}">
+                    <label class="flex items-center gap-2 w-28 shrink-0 text-sm font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" class="agShiftOn w-4 h-4 accent-emerald-500" data-k="${sh.key}" ${sh.on ? 'checked' : ''}>
+                        <span>${SHIFT_ICON[sh.key] || '🕒'} ${esc(sh.name)}</span>
+                    </label>
+                    <span class="text-xs text-slate-400">de</span>
+                    <select class="agShiftFrom border border-slate-200 rounded-lg p-2 text-sm tabular-nums focus:outline-none focus:border-emerald-500 disabled:opacity-40" data-k="${sh.key}" aria-label="${esc(sh.name)}: desde" ${sh.on ? '' : 'disabled'}>${shiftTimeOpts(sh.from, false)}</select>
+                    <span class="text-xs text-slate-400">a</span>
+                    <select class="agShiftTo border border-slate-200 rounded-lg p-2 text-sm tabular-nums focus:outline-none focus:border-emerald-500 disabled:opacity-40" data-k="${sh.key}" aria-label="${esc(sh.name)}: hasta" ${sh.on ? '' : 'disabled'}>${shiftTimeOpts(sh.to, true)}</select>
+                    <span class="text-xs text-slate-400">h</span>
+                </div>`).join('');
+            const r = await Swal.fire({
+                title: '🕒 Horarios de turnos',
+                width: 560,
+                showCancelButton: true,
+                confirmButtonText: 'Guardar horarios',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#10b981',
+                html: `<div class="text-left space-y-4">
+                    <div>${lbl('Días de atención')}<div class="flex flex-wrap gap-2">${dayBtns}</div></div>
+                    <div>${lbl('Franjas horarias · turnos cada media hora')}<div class="space-y-2">${rows}</div></div>
+                    <p class="text-[11px] text-slate-400">Destildá la franja en la que no atendés. Los turnos ya agendados no se modifican.</p>
+                </div>`,
+                didOpen: () => {
+                    document.querySelectorAll('.agShiftOn').forEach(cb => cb.addEventListener('change', () => {
+                        document.querySelectorAll(`[data-ag-row="${cb.dataset.k}"] select`).forEach(s => { s.disabled = !cb.checked; });
+                    }));
+                },
+                preConfirm: () => {
+                    const q = (c, k) => document.querySelector(`.${c}[data-k="${k}"]`);
+                    const shifts = getShifts(settings).map(sh => ({ key: sh.key, name: sh.name, on: !!q('agShiftOn', sh.key)?.checked, from: parseInt(q('agShiftFrom', sh.key)?.value), to: parseInt(q('agShiftTo', sh.key)?.value) }));
+                    const days = [...document.querySelectorAll('.agDay')].filter(c => c.checked).map(c => parseInt(c.value));
+                    const act = shifts.filter(s => s.on).sort((a, b) => a.from - b.from);
+                    if (!days.length) { Swal.showValidationMessage('Elegí al menos un día de atención.'); return false; }
+                    if (!act.length) { Swal.showValidationMessage('Activá al menos una franja (mañana, tarde o noche).'); return false; }
+                    const bad = act.find(s => isNaN(s.from) || isNaN(s.to) || s.to <= s.from);
+                    if (bad) { Swal.showValidationMessage(`En ${bad.name}, la hora de fin tiene que ser posterior a la de inicio.`); return false; }
+                    for (let i = 1; i < act.length; i++) {
+                        if (act[i].from < act[i - 1].to) { Swal.showValidationMessage(`${act[i - 1].name} y ${act[i].name} se superponen.`); return false; }
+                    }
+                    return { shifts, days, openMin: act[0].from, closeMin: Math.max(...act.map(s => s.to)) };
+                }
+            });
+            if (!r.isConfirmed || !r.value || !r.value.shifts) return;
+            settings = { ...settings, ...r.value };
+            saveBusinessData();
+            if (after) after();
+            syncAvailability('Horarios guardados');
+        }
+
         function renderAllAppointmentsPanel(container) {
             container.innerHTML = `
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
@@ -4060,8 +4115,12 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
                         <div>
                             <h2 class="text-lg font-bold text-slate-800 mb-1">🗓️ Agenda Central de Turnos</h2>
                             <p class="text-xs text-slate-400">Cargá acá los turnos que te piden por WhatsApp y cobralos cuando se atienden.</p>
+                            <p class="text-xs text-slate-600 mt-2"><i class="far fa-clock text-emerald-500 mr-1"></i>${esc(fmtDays(settings.days))} · ${esc(fmtShifts(settings))} <button type="button" id="hoursEditLink" class="text-emerald-600 font-bold ml-1 hover:underline">Modificar</button></p>
                         </div>
                         <div class="flex flex-wrap gap-2">
+                            <button id="hoursBtn" class="bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
+                                <i class="far fa-clock mr-1"></i> Horarios
+                            </button>
                             <button id="loadRequestBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm">
                                 <i class="fab fa-whatsapp mr-1"></i> Cargar pedido de WhatsApp
                             </button>
@@ -4092,6 +4151,7 @@ window.VENTIUN_PORTAL_ID = 'p-' + window.VENTIUN_PORTAL_SLUG;   // documento de 
             `;
 
             document.getElementById('newAppBtn')?.addEventListener('click', () => openNewAppointmentModal(container));
+            ['hoursBtn', 'hoursEditLink'].forEach(id => document.getElementById(id)?.addEventListener('click', () => openHoursModal(() => renderAllAppointmentsPanel(container))));
             const tableWrap = document.getElementById('allAppsTableBody')?.closest('.overflow-x-auto');
             if (tableWrap && !document.getElementById('remindersBox')) { const rb = document.createElement('div'); rb.id = 'remindersBox'; tableWrap.before(rb); }
             document.getElementById('loadRequestBtn')?.addEventListener('click', async () => {
