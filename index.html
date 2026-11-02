@@ -1266,7 +1266,7 @@ window.VGSubs = (function () {
                 // RENDER: Portal de socios (pantalla principal)
                 let portalCat = PUBLIC_CATALOG, portalLocal = false;
                 if (!portalCat) { portalCat = localCatalog(); portalLocal = !!portalCat; }
-                const portalSaved = portalCat && !portalLocal ? store.get('ventiun_member_code_' + portalCat.salonName) : '';
+                const portalSaved = portalCat && !portalLocal ? (store.get(MEMBER_PHONE_KEY) || store.get('ventiun_member_code_' + portalCat.salonName)) : '';
                 root.innerHTML = `
                     <div class="min-h-screen bg-white flex flex-col">
                         <nav class="max-w-5xl w-full mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-3 border-b border-slate-100">
@@ -3396,6 +3396,7 @@ window.VGSubs = (function () {
                                 ${cat.logo ? `<img src="${esc(cat.logo)}" alt="Logo de ${esc(cat.salonName)}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-sm">` : ''}
                                 <h1 class="min-w-0 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900" style="text-wrap: balance">${esc(cat.salonName)}</h1>
                             </div>
+                            ${!preview && clientView && clientView.salons && clientView.salons.length > 1 && cat === clientView.cat ? `<button id="hdrSwitch" type="button" class="mt-3 inline-flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-2 rounded-full transition"><i class="fas fa-shuffle"></i> Sos socio de ${clientView.salons.length} peluquerías · Cambiar</button>` : ''}
                             <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
                                 <span><i class="far fa-calendar text-emerald-500 mr-1.5"></i>${fmtDays(cat.days)} · ${fmtShifts(cat)}</span>
                                 ${cat.address ? `<span><i class="fas fa-location-dot text-emerald-500 mr-1.5"></i>${esc(cat.address)}</span>` : ''}
@@ -3450,7 +3451,10 @@ window.VGSubs = (function () {
                                 <div id="pubBooking" hidden>
                                 <div class="flex flex-wrap items-center justify-between gap-2 mb-5 pb-4 border-b border-slate-100">
                                     <p class="text-sm text-slate-700">Hola, <strong id="memName"></strong> <span class="text-xs text-slate-400 ml-1">Socio N° <span id="memNo" class="tabular-nums"></span></span></p>
+                                    <span class="flex items-center gap-3">
+                                    ${clientView && clientView.salons && clientView.salons.length > 1 && cat === clientView.cat ? '<button id="memSwitch" type="button" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200 hover:bg-emerald-50"><i class="fas fa-shuffle text-[10px] mr-1"></i>Cambiar peluquería</button>' : ''}
                                     <button id="memLogout" type="button" class="text-xs font-semibold text-slate-500 hover:text-rose-600">Salir</button>
+                                    </span>
                                 </div>
                                 <div class="grid sm:grid-cols-2 gap-4">
                                     <div class="sm:col-span-2">
@@ -3715,8 +3719,10 @@ window.VGSubs = (function () {
                 e.preventDefault();
                 tryCode($('gateCode').value, { remember: $('gateRemember').checked, silent: false });
             });
-            $('memLogout').addEventListener('click', () => { store.del(codeKey); clientView = null; renderApp(); window.scrollTo(0, 0); });
+            $('memLogout').addEventListener('click', () => { store.del(codeKey); if (clientView && clientView.salons) { clientView.salons.forEach(s => store.del('ventiun_member_code_' + s.cat.salonName)); store.del(MEMBER_PHONE_KEY); } clientView = null; renderApp(); window.scrollTo(0, 0); });
+            $('memSwitch')?.addEventListener('click', switchSalon);
             $('backHomeBtn')?.addEventListener('click', () => { clientView = null; renderApp(); window.scrollTo(0, 0); });
+            $('hdrSwitch')?.addEventListener('click', switchSalon);
             if (initialMember) {
                 showMember(initialMember);
                 setTimeout(() => document.getElementById('pedir')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -3884,6 +3890,75 @@ window.VGSubs = (function () {
             document.getElementById('bannerPublishBtn').addEventListener('click', startPublish);
         }
 
+        // ===== Socio de varias peluquerías: elige a cuál pedirle el turno =====
+        const MEMBER_PHONE_KEY = 'ventiun_member_phone';
+        const LAST_SALON_KEY = 'ventiun_member_last_salon';
+        // Todas las peluquerías publicadas donde ese celular es socio
+        async function memberSalons(raw, cat) {
+            const cats = {};
+            if (cat) cats[slugOf(cat.salonName)] = cat;
+            if (fbInit()) {
+                try {
+                    const q = await Promise.race([FB_DB.collection('portales').get(), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000))]);
+                    const legacy = [];
+                    q.forEach(d => {
+                        const c = d.data().catalog; if (!c || !c.salonName) return;
+                        if (d.id.indexOf('p-') === 0) cats[d.id.slice(2)] = c;
+                        else if (d.id === 'phatto') legacy.push(c);
+                    });
+                    legacy.forEach(c => { const s = slugOf(c.salonName); if (!cats[s]) cats[s] = c; });
+                } catch (e) { /* sin conexión: solo la peluquería de esta página */ }
+            }
+            const list = await Promise.all(Object.keys(cats).map(async slug => {
+                let m = null;
+                try { m = await findMember(raw, cats[slug], false); } catch (e) { m = null; }
+                return m ? { slug, cat: cats[slug], member: m } : null;
+            }));
+            const last = store.get(LAST_SALON_KEY);
+            return list.filter(Boolean).sort((a, b) => (b.slug === last) - (a.slug === last) || a.cat.salonName.localeCompare(b.cat.salonName));
+        }
+        // Ventana para elegir la peluquería
+        function chooseSalon(salons, currentSlug) {
+            return new Promise(resolve => {
+                let chosen = null;
+                const items = salons.map((s, i) => `
+                    <button type="button" data-salon="${i}" class="salonPick w-full flex items-center gap-3 p-3 rounded-2xl border ${s.slug === currentSlug ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50'} text-left transition">
+                        ${s.cat.logo ? `<img src="${esc(s.cat.logo)}" alt="" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0">` : `<span class="w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0"><i class="fas fa-scissors"></i></span>`}
+                        <span class="min-w-0 flex-1">
+                            <span class="block font-bold text-slate-800 truncate">${esc(s.cat.salonName)}</span>
+                            <span class="block text-xs text-slate-500 truncate">Socio N° ${esc(s.member.no)}${s.cat.address ? ' · ' + esc(s.cat.address) : ''}</span>
+                        </span>
+                        ${s.slug === currentSlug ? '<span class="text-[10px] font-bold uppercase tracking-wide text-emerald-600 shrink-0">Actual</span>' : '<i class="fas fa-chevron-right text-slate-300 shrink-0"></i>'}
+                    </button>`).join('');
+                Swal.fire({
+                    title: '¿En qué peluquería querés tu turno?',
+                    html: `<p class="text-sm text-slate-500 mb-4">Sos socio de ${salons.length} peluquerías. Elegí a cuál le pedís el turno.</p><div class="space-y-2">${items}</div>`,
+                    showConfirmButton: false,
+                    showCancelButton: true,
+                    cancelButtonText: 'Cancelar',
+                    didOpen: () => {
+                        document.querySelectorAll('.salonPick').forEach(b => b.addEventListener('click', () => { chosen = salons[+b.dataset.salon]; Swal.close(); }));
+                    }
+                }).then(() => resolve(chosen));
+            });
+        }
+        function enterSalon(pick, salons, phone, remember, local) {
+            if (!local) {
+                const codeKey = 'ventiun_member_code_' + pick.cat.salonName;
+                if (remember) store.set(codeKey, phone); else store.del(codeKey);
+                store.set(LAST_SALON_KEY, pick.slug);
+            }
+            clientView = { cat: pick.cat, local, member: pick.member, salons, slug: pick.slug, phone, remember };
+            renderApp();
+            window.scrollTo(0, 0);
+        }
+        async function switchSalon() {
+            if (!clientView || !clientView.salons || clientView.salons.length < 2) return;
+            const pick = await chooseSalon(clientView.salons, clientView.slug);
+            if (!pick || pick.slug === clientView.slug) return;
+            enterSalon(pick, clientView.salons, clientView.phone, clientView.remember, clientView.local);
+        }
+
         function bindPortalForm(cat, local) {
             const form = document.getElementById('portalForm');
             const input = document.getElementById('portalCode');
@@ -3896,15 +3971,21 @@ window.VGSubs = (function () {
                 const clean = input.value.trim();
                 if (!looksLikeCode(clean) && clean.replace(/\D/g, '').length < 6) { msg.textContent = 'Escribí tu número de celular, por ejemplo 341 555 1234.'; msg.hidden = false; return; }
                 btn.disabled = true; btn.textContent = 'Verificando…';
-                let found = null;
-                try { found = await findMember(clean, cat, local); } catch (err) { found = null; }
+                let salons = [];
+                if (local) {
+                    let found = null;
+                    try { found = await findMember(clean, cat, local); } catch (err) { found = null; }
+                    if (found) salons = [{ slug: slugOf(cat.salonName), cat, member: found }];
+                } else {
+                    try { salons = await memberSalons(clean, cat); } catch (err) { salons = []; }
+                }
                 btn.disabled = false; btn.textContent = 'Ingresar';
-                if (!found) { msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile a tu peluquería que te agregue.'; msg.hidden = false; return; }
-                const codeKey = 'ventiun_member_code_' + cat.salonName;
-                if (!local) { if (document.getElementById('portalRemember').checked) store.set(codeKey, clean); else store.del(codeKey); }
-                clientView = { cat, local, member: found };
-                renderApp();
-                window.scrollTo(0, 0);
+                if (!salons.length) { msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile a tu peluquería que te agregue.'; msg.hidden = false; return; }
+                const remember = !local && document.getElementById('portalRemember').checked;
+                if (!local) { if (remember) store.set(MEMBER_PHONE_KEY, clean); else store.del(MEMBER_PHONE_KEY); }
+                const pick = salons.length > 1 ? await chooseSalon(salons) : salons[0];
+                if (!pick) return;
+                enterSalon(pick, salons, clean, remember, local);
             });
         }
 
