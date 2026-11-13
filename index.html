@@ -1496,7 +1496,7 @@ window.VGSubs = (function () {
                                     <p id="portalMsg" class="text-sm text-rose-600" hidden></p>
                                 </form>
                                 ${portalCat ? '' : '<p class="mt-6 text-sm text-slate-400">El portal todavía no está habilitado. Volvé a entrar más tarde.</p>'}
-                                ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu peluquería</a></p>` : ''}
+                                ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu comercio</a></p>` : ''}
                             </div>
                         </main>
                         ${vgPlansSection()}
@@ -4201,7 +4201,7 @@ window.VGSubs = (function () {
                     try { salons = await memberSalons(clean, cat); } catch (err) { salons = []; }
                 }
                 btn.disabled = false; btn.textContent = 'Ingresar';
-                if (!salons.length) { msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile a tu peluquería que te agregue.'; msg.hidden = false; return; }
+                if (!salons.length) { msg.textContent = 'No encontramos un socio con ese celular. Revisalo o pedile a tu comercio que te agregue.'; msg.hidden = false; return; }
                 const remember = !local && document.getElementById('portalRemember').checked;
                 if (!local) { if (remember) store.set(MEMBER_PHONE_KEY, clean); else store.del(MEMBER_PHONE_KEY); }
                 const pick = salons.length > 1 ? await chooseSalon(salons) : salons[0];
