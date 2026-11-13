@@ -1496,6 +1496,7 @@ window.VGSubs = (function () {
                                 </form>
                                 ${portalCat ? '' : '<p class="mt-6 text-sm text-slate-400">El portal todavía no está habilitado. Volvé a entrar más tarde.</p>'}
                                 ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu comercio</a></p>` : ''}
+                                <section class="mt-10 text-left rounded-2xl bg-white border border-slate-200 p-6"><h2 class="text-xl font-extrabold text-slate-900">¿Tenés un negocio con turnos?</h2><p class="mt-2 text-sm text-slate-500">Creá la cuenta de tu negocio o iniciá sesión para dar turnos online y organizar tu agenda.</p><button type="button" onclick="openAuthModal('loginModal')" class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition">Crear cuenta o iniciar sesión</button></section>
                             </div>
                         </main>
                         ${vgPlansSection()}
