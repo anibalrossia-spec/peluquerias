@@ -668,6 +668,7 @@ window.VGSubs = (function () {
         let PUBLIC_CATALOG = null;
         try { PUBLIC_CATALOG = JSON.parse(document.getElementById('publicCatalog').textContent); } catch (e) { PUBLIC_CATALOG = null; }
         let showAdminLanding = false;
+        let pelAcc = false;      // pantalla «Cuenta de tu negocio» (ingresar o crear cuenta + planes)
         let clientView = null;   // { cat, local, member } cuando un socio entró a pedir turno
         const store = {
             get(k){ try { return window.localStorage.getItem(k); } catch(e){ return null; } },
@@ -1423,7 +1424,7 @@ window.VGSubs = (function () {
                         <section id="planes" class="bg-slate-50 border-t border-slate-100 py-16 px-4">
                             <div class="max-w-3xl mx-auto">
                                 <div class="text-center mb-10">
-                                    <p class="text-emerald-600 font-semibold text-xs uppercase tracking-[0.18em] mb-2">¿Tenés una peluquería? · Planes</p>
+                                    <p class="text-emerald-600 font-semibold text-xs uppercase tracking-[0.18em] mb-2">Planes</p>
                                     <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight" style="text-wrap: balance">2 meses gratis, después elegís tu plan</h2>
                                     <p class="mt-3 text-slate-500">Los mismos planes de todas las apps de VentiunGo: Esencial y Pro, por mes, por trimestre o por año.</p>
                                 </div>
@@ -1431,7 +1432,7 @@ window.VGSubs = (function () {
                                     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-7 flex flex-col">
                                         <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Prueba gratis</p>
                                         <p class="mt-1 text-5xl font-extrabold text-slate-900 tracking-tight">2 meses</p>
-                                        <p class="mt-1 text-sm text-slate-500">para peluquerías y barberías</p>
+                                        <p class="mt-1 text-sm text-slate-500">para tu negocio</p>
                                         <ul class="mt-6 mb-8 space-y-3">${['Turnos online para tus socios', 'Confirmación directa por WhatsApp', 'Caja, comisiones y estilistas', 'Sin tarjeta para empezar'].map(t => li(false, t)).join('')}</ul>
                                         <button type="button" onclick="openAuthModal('registerModal')" class="mt-auto w-full py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition">Empezar gratis</button>
                                     </div>
@@ -1479,11 +1480,12 @@ window.VGSubs = (function () {
                             <div class="flex items-center gap-1.5 shrink-0">
                             ${typeof installBtnHtml === 'function' ? installBtnHtml() : ''}
                             ${themeBtnHtml()}
-                            <button onclick="openAuthModal('loginModal')" class="shrink-0 text-xs font-semibold px-3 py-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition"><i class="fas fa-lock text-[10px] mr-1"></i>Acceso del local</button>
+                            <button onclick="pelAcceso()" class="shrink-0 text-xs font-semibold px-3 py-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition"><i class="fas fa-lock text-[10px] mr-1"></i>Acceso del local</button>
                             </div>
                         </nav>
 
-                        <main class="flex-1 flex items-center justify-center px-4 py-14">
+                        ${pelAcc ? `<section class="flex-1 px-4 py-14"><div class="w-full max-w-md mx-auto"><p class="text-emerald-600 font-semibold text-xs uppercase tracking-[0.18em]">Soy comercio</p><h1 class="mt-2 text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Cuenta de tu negocio</h1><p class="mt-3 text-slate-500">Si ya tenés cuenta, ingresá con tus datos. Si es tu primera vez, creá tu cuenta y empezá con 2 meses gratis.</p><div class="mt-8 space-y-3"><button type="button" onclick="openAuthModal('loginModal')" class="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 shadow-xl shadow-emerald-500/20 transition">Ingresar con mi cuenta</button><button type="button" onclick="openAuthModal('registerModal')" class="w-full py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl font-bold hover:bg-slate-50 transition">Crear cuenta nueva · 2 meses gratis</button></div><button type="button" onclick="pelAccVolver()" class="mt-8 text-sm font-semibold text-slate-500 hover:text-slate-800">← Volver al portal de socios</button></div></section>` : ''}
+                        <main class="flex-1 ${pelAcc ? 'hidden' : 'flex'} items-center justify-center px-4 py-14">
                             <div class="w-full max-w-md text-center">
                                 <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight" style="text-wrap: balance">Bienvenido al portal de socios</h1>
                                 <p class="mt-3 text-base text-slate-500">Escribí tu número de celular para pedir tu turno.</p>
@@ -1496,10 +1498,10 @@ window.VGSubs = (function () {
                                 </form>
                                 ${portalCat ? '' : '<p class="mt-6 text-sm text-slate-400">El portal todavía no está habilitado. Volvé a entrar más tarde.</p>'}
                                 ${portalCat && portalCat.whatsapp ? `<p class="mt-8 text-xs text-slate-400">¿Todavía no sos socio? <a class="font-semibold text-emerald-600 hover:underline" target="_blank" rel="noopener" href="https://wa.me/${waNumber(portalCat.whatsapp)}?text=${encodeURIComponent('¡Hola! Quiero hacerme socio de ' + portalCat.salonName + ' para pedir turnos.')}">Pedíselo a tu comercio</a></p>` : ''}
-                                <section class="mt-10 text-left rounded-2xl bg-white border border-slate-200 p-6"><h2 class="text-xl font-extrabold text-slate-900">¿Tenés un negocio con turnos?</h2><p class="mt-2 text-sm text-slate-500">Creá la cuenta de tu negocio o iniciá sesión para dar turnos online y organizar tu agenda.</p><button type="button" onclick="openAuthModal('loginModal')" class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition">Crear cuenta o iniciar sesión</button></section>
+                                <section class="mt-10 text-left rounded-2xl bg-white border border-slate-200 p-6"><h2 class="text-xl font-extrabold text-slate-900">¿Tenés un negocio con turnos?</h2><p class="mt-2 text-sm text-slate-500">Creá la cuenta de tu negocio o iniciá sesión para dar turnos online y organizar tu agenda.</p><button type="button" onclick="pelAcceso()" class="mt-5 w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition">Crear cuenta o iniciar sesión</button></section>
                             </div>
                         </main>
-                        ${vgPlansSection()}
+                        ${pelAcc ? vgPlansSection() : ''}
 
                         ${authModalsHtml()}
                     </div>
@@ -4166,10 +4168,9 @@ window.VGSubs = (function () {
 
         // Compartir la app del local con sus socios
         // Invitación a otros negocios: lleva a la información y los planes de Gestión de turnos
-        function pelGoAlta() {
-            clientView = null; renderApp();
-            setTimeout(() => { const s = document.getElementById('planes'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
-        }
+        function pelGoAlta() { pelAcceso(); }
+        function pelAcceso() { pelAcc = true; clientView = null; renderApp(); window.scrollTo(0, 0); }
+        function pelAccVolver() { pelAcc = false; renderApp(); window.scrollTo(0, 0); }
         function pelShareInfo() { const n = (currentBusiness && currentBusiness.name) || (settings && settings.salonName) || 'tu local'; return { nombre: n, link: bizLink() }; }
         function pelShareApp() {
             const i = pelShareInfo();
