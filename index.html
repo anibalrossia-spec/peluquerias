@@ -1406,7 +1406,7 @@ window.VGSubs = (function () {
                         <nav class="max-w-5xl w-full mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-3 border-b border-slate-100">
                             <div class="flex items-center gap-2 min-w-0">
                                 <div class="w-10 h-10 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                                    <i class="fas fa-scissors text-white text-lg"></i>
+                                    <i class="fas fa-calendar-check text-white text-lg"></i>
                                 </div>
                                 <span class="flex flex-col leading-none min-w-0"><span class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">Ventiun<span class="text-emerald-500">Go</span></span><span class="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Gestión de turnos</span></span>
                             </div>
@@ -1451,7 +1451,7 @@ window.VGSubs = (function () {
                             <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
                                 <div class="flex items-center gap-3">
                                     ${settings.logo ? `<img src="${esc(settings.logo)}" alt="Logo" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0">` : `<div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/10">
-                                        <i class="fas fa-scissors"></i>
+                                        <i class="fas fa-calendar-check"></i>
                                     </div>`}
                                     <div>
                                         <h1 class="text-lg font-extrabold tracking-tight text-slate-800 flex items-center gap-2">
@@ -3265,7 +3265,7 @@ window.VGSubs = (function () {
                             <div class="sm:col-span-2">
                                 <span class="block text-xs font-bold text-slate-500 mb-1">LOGO DEL LOCAL</span>
                                 <div class="flex flex-wrap items-center gap-4 p-3 rounded-xl border border-dashed border-slate-300">
-                                    ${settings.logo ? `<img src="${esc(settings.logo)}" alt="Logo actual" class="w-16 h-16 rounded-2xl object-cover border border-slate-200">` : '<div class="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl"><i class="fas fa-scissors"></i></div>'}
+                                    ${settings.logo ? `<img src="${esc(settings.logo)}" alt="Logo actual" class="w-16 h-16 rounded-2xl object-cover border border-slate-200">` : '<div class="w-16 h-16 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl"><i class="fas fa-calendar-check"></i></div>'}
                                     <div class="flex flex-wrap gap-2">
                                         <label class="cursor-pointer px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition"><i class="fas fa-image mr-1"></i> ${settings.logo ? 'Cambiar logo' : 'Subir logo'}<input id="cfgLogo" type="file" accept="image/*" class="hidden"></label>
                                         ${settings.logo ? '<button id="cfgLogoDel" type="button" class="px-4 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition">Quitar</button>' : ''}
@@ -3520,7 +3520,7 @@ window.VGSubs = (function () {
                         <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-8">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="flex items-center gap-2 text-emerald-600 text-[11px] font-bold uppercase tracking-[0.14em]">
-                                    <i class="fas fa-scissors"></i> Peluquería
+                                    <i class="fas fa-calendar-check"></i> Peluquería
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                 ${themeBtnHtml()}
@@ -4058,7 +4058,7 @@ window.VGSubs = (function () {
                 let chosen = null;
                 const items = salons.map((s, i) => `
                     <button type="button" data-salon="${i}" class="salonPick w-full flex items-center gap-3 p-3 rounded-2xl border ${s.slug === currentSlug ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50'} text-left transition">
-                        ${s.cat.logo ? `<img src="${esc(s.cat.logo)}" alt="" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0">` : `<span class="w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0"><i class="fas fa-scissors"></i></span>`}
+                        ${s.cat.logo ? `<img src="${esc(s.cat.logo)}" alt="" class="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0">` : `<span class="w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0"><i class="fas fa-calendar-check"></i></span>`}
                         <span class="min-w-0 flex-1">
                             <span class="block font-bold text-slate-800 truncate">${esc(s.cat.salonName)}</span>
                             <span class="block text-xs text-slate-500 truncate">Socio N° ${esc(s.member.no)}${s.cat.address ? ' · ' + esc(s.cat.address) : ''}</span>
@@ -4172,7 +4172,7 @@ window.VGSubs = (function () {
                 <div class="min-h-screen bg-slate-50 flex flex-col">
                     <main class="flex-1 flex items-center justify-center px-4 py-16">
                         <div class="max-w-sm text-center">
-                            <div class="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20"><i class="fas fa-scissors text-xl"></i></div>
+                            <div class="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20"><i class="fas fa-calendar-check text-xl"></i></div>
                             <h1 class="mt-5 text-2xl font-extrabold text-slate-900">Turnos online</h1>
                             <p class="mt-2 text-sm text-slate-500">La peluquería todavía está preparando su página. Volvé a entrar en un rato para ver servicios, precios y pedir tu turno.</p>
                         </div>
