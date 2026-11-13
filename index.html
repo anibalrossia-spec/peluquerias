@@ -3722,6 +3722,7 @@ window.VGSubs = (function () {
                         </section>
                     </main>
 
+                    ${preview ? '' : `<button type="button" onclick="pelGoAlta()" class="block w-full text-center text-xs sm:text-sm text-slate-500 hover:text-emerald-600 px-4 pt-6 pb-2">¿Tenés un negocio con turnos? <strong class="text-emerald-600">Creá tu agenda online en VentiunGo Gestión de turnos</strong></button>`}
                     <footer class="max-w-3xl mx-auto px-4 sm:px-6 pb-10 pt-2 flex flex-wrap justify-between gap-3 text-xs text-slate-400">
                         <span>Ventiun<span class="text-emerald-500 font-bold">Go</span> Gestión de turnos</span>
                         ${preview ? '' : '<button id="adminAccessBtn" class="hover:text-slate-600 hover:underline">¿Sos del local? Ingresar al panel</button>'}
@@ -4164,6 +4165,11 @@ window.VGSubs = (function () {
         }
 
         // Compartir la app del local con sus socios
+        // Invitación a otros negocios: lleva a la información y los planes de Gestión de turnos
+        function pelGoAlta() {
+            clientView = null; renderApp();
+            setTimeout(() => { const s = document.getElementById('planes'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+        }
         function pelShareInfo() { const n = (currentBusiness && currentBusiness.name) || (settings && settings.salonName) || 'tu local'; return { nombre: n, link: bizLink() }; }
         function pelShareApp() {
             const i = pelShareInfo();
