@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 <body>
-<title>VentiunGo Peluquerías</title>
+<title>VentiunGo Gestión de turnos</title>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
@@ -248,7 +248,7 @@ window.VGSubs = (function () {
       { id: 'pro', nombre: 'Pro (App + Web)', icono: '💻', base: 31200, recomendado: true, cinta: 'Recomendado para emprendedores', no: ['Documento electrónico'] }
     ]
   };
-  var APPS = { peluquerias: 'VentiunGo Peluquerías', sociocafe: 'Socios Café', flordelceibo: 'Flor del Ceibo', redpro: 'RedPro' };
+  var APPS = { peluquerias: 'VentiunGo Gestión de turnos', sociocafe: 'Socios Café', flordelceibo: 'Flor del Ceibo', redpro: 'RedPro' };
   var cur = null, cfg = null, cfgP = null, blockEl = null, pillEl = null, periodo = 'anio', elegido = '';
 
   function h(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -1408,7 +1408,7 @@ window.VGSubs = (function () {
                                 <div class="w-10 h-10 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
                                     <i class="fas fa-scissors text-white text-lg"></i>
                                 </div>
-                                <span class="flex flex-col leading-none min-w-0"><span class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">Ventiun<span class="text-emerald-500">Go</span></span><span class="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Peluquerías</span></span>
+                                <span class="flex flex-col leading-none min-w-0"><span class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">Ventiun<span class="text-emerald-500">Go</span></span><span class="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Gestión de turnos</span></span>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                             ${typeof installBtnHtml === 'function' ? installBtnHtml() : ''}
@@ -2575,7 +2575,7 @@ window.VGSubs = (function () {
 
         // Etiquetas del encabezado de la página (se repiten al republicar)
         const PAGE_HEAD_TAGS = [
-            '<title>VentiunGo Peluquerías</title>',
+            '<title>VentiunGo Gestión de turnos</title>',
             '<script src="https://cdn.tailwindcss.com/3.4.17"></scr' + 'ipt>',
             '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">',
             '<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></scr' + 'ipt>',
@@ -2759,7 +2759,7 @@ window.VGSubs = (function () {
                 confirmButtonText: '💬 Escribir por WhatsApp', denyButtonText: '🔢 Ya tengo el código', cancelButtonText: 'Cerrar',
                 confirmButtonColor: '#10b981', denyButtonColor: '#0f172a'
             });
-            if (r.isConfirmed) return waSupport(`Hola VentiunGo, olvidé la contraseña del panel de ${salon} (app Peluquerías). ¿Me dan una nueva?`);
+            if (r.isConfirmed) return waSupport(`Hola VentiunGo, olvidé la contraseña del panel de ${salon} (app Gestión de turnos). ¿Me dan una nueva?`);
             if (r.isDenied) return resetWithCode();
         }
         async function resetWithCode() {
@@ -3654,7 +3654,7 @@ window.VGSubs = (function () {
                     </main>
 
                     <footer class="max-w-3xl mx-auto px-4 sm:px-6 pb-10 pt-2 flex flex-wrap justify-between gap-3 text-xs text-slate-400">
-                        <span>Ventiun<span class="text-emerald-500 font-bold">Go</span> Peluquerías</span>
+                        <span>Ventiun<span class="text-emerald-500 font-bold">Go</span> Gestión de turnos</span>
                         ${preview ? '' : '<button id="adminAccessBtn" class="hover:text-slate-600 hover:underline">¿Sos del local? Ingresar al panel</button>'}
                     </footer>
                     ${preview ? '' : authModalsHtml()}
