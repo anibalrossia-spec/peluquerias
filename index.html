@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#10b981">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="VentiunGo">
+<meta name="apple-mobile-web-app-title" content="Gestión turnos">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 <body>
@@ -4181,7 +4181,7 @@ window.VGSubs = (function () {
 
         function bindPortalForm(cat, local) {
             // La app instalada desde la página del local abre directo ese local, con su nombre
-            if (!local && cat && cat.salonName && window.VGShare) VGShare.manifest({ name: cat.salonName, start: '?l=' + (window.VENTIUN_PORTAL_SLUG || slugOf(cat.salonName)), description: 'Pedí tu turno en ' + cat.salonName, theme: '#10b981', bg: '#ffffff', icons: [['icons/icon-192.png', '192x192'], ['icons/icon-512.png', '512x512'], ['icons/icon-maskable-512.png', '512x512', 'maskable']] });
+            if (!local && cat && cat.salonName && window.VGShare) VGShare.manifest({ name: 'Gestión turnos', start: '?l=' + (window.VENTIUN_PORTAL_SLUG || slugOf(cat.salonName)), description: 'Pedí tu turno en ' + cat.salonName, theme: '#10b981', bg: '#ffffff', icons: [['icons/icon-192.png', '192x192'], ['icons/icon-512.png', '512x512'], ['icons/icon-maskable-512.png', '512x512', 'maskable']] });
             const form = document.getElementById('portalForm');
             const input = document.getElementById('portalCode');
             const msg = document.getElementById('portalMsg');
